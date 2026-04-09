@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-xl shadow-md p-6">
+  <h1 class="text-2xl font-semibold mb-1">Create Account</h1>
+  <p class="text-slate-600 mb-6">Start cleaning your newsletter list.</p>
+
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm mb-1">Email</label>
+      <input type="email" name="email" required class="w-full border border-slate-300 rounded px-3 py-2" />
+    </div>
+    <div>
+      <label class="block text-sm mb-1">Password</label>
+      <input type="password" name="password" minlength="6" required class="w-full border border-slate-300 rounded px-3 py-2" />
+    </div>
+    <button type="submit" class="w-full bg-slate-900 text-white py-2 rounded">Sign Up</button>
+  </form>
+
+  <p class="text-sm mt-4">Already registered? <a href="{{ url_for('login') }}" class="underline">Login</a></p>
+</div>
+{% endblock %}

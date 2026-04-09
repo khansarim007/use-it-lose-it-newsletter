@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="mb-8">
+  <h1 class="text-3xl font-semibold">Dashboard</h1>
+  <p class="text-slate-700">Monitor engagement and keep your list high quality.</p>
+</div>
+
+<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Total Subscribers</p><p class="text-2xl font-bold">{{ stats.total or 0 }}</p></div>
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Active</p><p class="text-2xl font-bold text-emerald-700">{{ stats.active or 0 }}</p></div>
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Inactive</p><p class="text-2xl font-bold text-amber-600">{{ stats.inactive or 0 }}</p></div>
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Removed</p><p class="text-2xl font-bold text-rose-700">{{ stats.removed or 0 }}</p></div>
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Open Rate</p><p class="text-2xl font-bold">{{ open_rate }}%</p></div>
+  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Click Rate</p><p class="text-2xl font-bold">{{ click_rate }}%</p></div>
+</div>
+
+<div class="flex flex-wrap gap-3">
+  <form method="POST" action="{{ url_for('clean_list') }}">
+    <button class="px-4 py-2 rounded bg-slate-900 text-white">Clean List</button>
+  </form>
+  <form method="POST" action="{{ url_for('warn_inactive') }}">
+    <button class="px-4 py-2 rounded bg-amber-500 text-white">Send warning email to inactive users</button>
+  </form>
+</div>
+{% endblock %}

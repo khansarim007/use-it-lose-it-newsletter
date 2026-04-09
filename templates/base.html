@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Use It or Lose It Newsletter System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen">
+  <div class="min-h-screen bg-[radial-gradient(circle_at_top_left,_#fef9c3,_#e2e8f0_35%,_#cbd5e1_100%)]">
+    <nav class="bg-white/80 backdrop-blur border-b border-slate-200">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+        <a href="{{ url_for('dashboard') if session.get('user_id') else url_for('login') }}" class="font-semibold text-xl tracking-tight">Use It or Lose It</a>
+        {% if session.get('user_id') %}
+          <div class="flex gap-4 items-center text-sm">
+            <a href="{{ url_for('dashboard') }}" class="hover:underline">Dashboard</a>
+            <a href="{{ url_for('upload_csv') }}" class="hover:underline">Upload CSV</a>
+            <a href="{{ url_for('subscribers') }}" class="hover:underline">Subscribers</a>
+            <a href="{{ url_for('compose_email') }}" class="hover:underline">Compose</a>
+            <a href="{{ url_for('logout') }}" class="px-3 py-1.5 rounded bg-slate-900 text-white">Logout</a>
+          </div>
+        {% endif %}
+      </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="space-y-2 mb-5">
+            {% for category, message in messages %}
+              <div class="px-4 py-3 rounded border {% if category == 'error' %}bg-red-50 border-red-200 text-red-800{% else %}bg-emerald-50 border-emerald-200 text-emerald-800{% endif %}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

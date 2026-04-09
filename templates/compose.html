@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="grid lg:grid-cols-2 gap-6">
+  <div class="bg-white rounded-xl shadow-sm p-6">
+    <h1 class="text-2xl font-semibold mb-2">Email Composer</h1>
+    <p class="text-slate-600 mb-4">Generate tracked HTML email for a subscriber.</p>
+
+    <form method="POST" class="space-y-4">
+      <div>
+        <label class="block text-sm mb-1">Subject</label>
+        <input type="text" name="subject" required class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-sm mb-1">Subscriber for tracking</label>
+        <select name="subscriber_id" required class="w-full border border-slate-300 rounded px-3 py-2">
+          <option value="">Select subscriber</option>
+          {% for sub in subscribers %}
+            <option value="{{ sub.id }}" {% if selected_subscriber == sub.id %}selected{% endif %}>{{ sub.email }} ({{ sub.status }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm mb-1">Body (HTML)</label>
+        <textarea name="body" rows="12" required class="w-full border border-slate-300 rounded px-3 py-2" placeholder="<p>Hello...</p><a href='https://example.com'>Visit</a>"></textarea>
+      </div>
+      <button type="submit" class="px-4 py-2 rounded bg-slate-900 text-white">Generate Tracked Email</button>
+    </form>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm p-6">
+    <h2 class="text-xl font-semibold mb-2">Generated Output</h2>
+    {% if generated_email %}
+      <p class="text-sm mb-2"><span class="font-medium">To:</span> {{ generated_email.subscriber_email }}</p>
+      <p class="text-sm mb-3"><span class="font-medium">Subject:</span> {{ generated_email.subject }}</p>
+      <textarea class="w-full border border-slate-300 rounded p-3 text-xs" rows="18" readonly>{{ generated_email.body }}</textarea>
+      <div class="mt-4 p-3 bg-slate-50 rounded border border-slate-200">
+        <p class="text-sm font-medium mb-2">Rendered Preview</p>
+        <div class="prose max-w-none">{{ generated_email.body|safe }}</div>
+      </div>
+    {% else %}
+      <p class="text-slate-600">No generated email yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
