@@ -37,6 +37,7 @@ from integrations.mailchimp import fetch_subscribers as fetch_mailchimp_subscrib
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 DATABASE = "database.db"
+DB_READY = False
 
 
 PLATFORM_CONFIG = {
@@ -133,6 +134,15 @@ def ensure_db_columns(db):
     integration_columns = {row["name"] for row in db.execute("PRAGMA table_info(integrations)").fetchall()}
     if "extra_data" not in integration_columns:
         db.execute("ALTER TABLE integrations ADD COLUMN extra_data TEXT")
+
+
+@app.before_request
+def ensure_database_ready():
+    global DB_READY
+    if DB_READY:
+        return
+    init_db()
+    DB_READY = True
 
 
 def parse_datetime(value):
