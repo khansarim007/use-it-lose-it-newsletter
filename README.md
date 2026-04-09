@@ -1,4 +1,4 @@
-# Use It or Lose It Newsletter System
+# CullList
 
 Simple MVP SaaS tool for newsletter engagement management.
 

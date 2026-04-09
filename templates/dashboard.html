@@ -1,25 +1,51 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="mb-8">
-  <h1 class="text-3xl font-semibold">Dashboard</h1>
-  <p class="text-slate-700">Monitor engagement and keep your list high quality.</p>
-</div>
+<div class="space-y-8">
+  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-8 md:p-10">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">
+          Live dashboard
+        </div>
+        <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-950">Dashboard</h1>
+        <p class="mt-3 text-slate-600 max-w-2xl">Monitor engagement, cull inactive subscribers, and keep your list high quality.</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <form method="POST" action="{{ url_for('clean_list') }}">
+          <button class="px-5 py-3 rounded-full bg-slate-950 text-white font-semibold shadow-lg shadow-slate-950/20 hover:bg-slate-800 transition-colors">Clean List</button>
+        </form>
+        <form method="POST" action="{{ url_for('warn_inactive') }}">
+          <button class="px-5 py-3 rounded-full bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-colors">Send warning email</button>
+        </form>
+      </div>
+    </div>
+  </section>
 
-<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Total Subscribers</p><p class="text-2xl font-bold">{{ stats.total or 0 }}</p></div>
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Active</p><p class="text-2xl font-bold text-emerald-700">{{ stats.active or 0 }}</p></div>
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Inactive</p><p class="text-2xl font-bold text-amber-600">{{ stats.inactive or 0 }}</p></div>
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Removed</p><p class="text-2xl font-bold text-rose-700">{{ stats.removed or 0 }}</p></div>
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Open Rate</p><p class="text-2xl font-bold">{{ open_rate }}%</p></div>
-  <div class="bg-white p-5 rounded-xl shadow-sm"><p class="text-sm text-slate-500">Click Rate</p><p class="text-2xl font-bold">{{ click_rate }}%</p></div>
-</div>
-
-<div class="flex flex-wrap gap-3">
-  <form method="POST" action="{{ url_for('clean_list') }}">
-    <button class="px-4 py-2 rounded bg-slate-900 text-white">Clean List</button>
-  </form>
-  <form method="POST" action="{{ url_for('warn_inactive') }}">
-    <button class="px-4 py-2 rounded bg-amber-500 text-white">Send warning email to inactive users</button>
-  </form>
+  <section class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Total Subscribers</p>
+      <p class="mt-3 text-4xl font-black text-slate-950">{{ stats.total or 0 }}</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Active</p>
+      <p class="mt-3 text-4xl font-black text-emerald-700">{{ stats.active or 0 }}</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Inactive</p>
+      <p class="mt-3 text-4xl font-black text-amber-600">{{ stats.inactive or 0 }}</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Removed</p>
+      <p class="mt-3 text-4xl font-black text-rose-700">{{ stats.removed or 0 }}</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Open Rate</p>
+      <p class="mt-3 text-4xl font-black text-slate-950">{{ open_rate }}%</p>
+    </div>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+      <p class="text-sm font-medium text-slate-500">Click Rate</p>
+      <p class="mt-3 text-4xl font-black text-slate-950">{{ click_rate }}%</p>
+    </div>
+  </section>
 </div>
 {% endblock %}

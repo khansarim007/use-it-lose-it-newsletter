@@ -1,21 +1,48 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="max-w-md mx-auto bg-white rounded-xl shadow-md p-6">
-  <h1 class="text-2xl font-semibold mb-1">Login</h1>
-  <p class="text-slate-600 mb-6">Access your newsletter engagement workspace.</p>
-
-  <form method="POST" class="space-y-4">
-    <div>
-      <label class="block text-sm mb-1">Email</label>
-      <input type="email" name="email" required class="w-full border border-slate-300 rounded px-3 py-2" />
+<div class="min-h-[calc(100vh-9rem)] flex items-center justify-center py-4 sm:py-8">
+  <div class="w-full max-w-5xl grid lg:grid-cols-2 rounded-3xl overflow-hidden shadow-2xl shadow-slate-900/10 border border-slate-200 bg-white">
+    <div class="hidden lg:flex flex-col justify-between p-10 bg-slate-950 text-white">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-sm text-slate-200 mb-6">
+          CullList
+        </div>
+        <h1 class="text-4xl font-black tracking-tight leading-tight">
+          Welcome back.
+          <span class="block text-emerald-400">Trim your list. Lift your opens.</span>
+        </h1>
+        <p class="mt-4 text-slate-300 text-lg leading-relaxed">
+          Sign in to remove inactive subscribers, monitor engagement, and keep your list healthy.
+        </p>
+      </div>
+      <div class="text-sm text-slate-400">
+        Built for newsletter creators who want fewer dead subscribers and better deliverability.
+      </div>
     </div>
-    <div>
-      <label class="block text-sm mb-1">Password</label>
-      <input type="password" name="password" required class="w-full border border-slate-300 rounded px-3 py-2" />
-    </div>
-    <button type="submit" class="w-full bg-slate-900 text-white py-2 rounded">Login</button>
-  </form>
 
-  <p class="text-sm mt-4">No account? <a href="{{ url_for('signup') }}" class="underline">Create one</a></p>
+    <div class="p-6 sm:p-8 lg:p-12">
+      <h2 class="text-3xl font-black tracking-tight text-slate-950">Login</h2>
+      <p class="mt-2 text-slate-600">Access your CullList dashboard.</p>
+
+      <form method="POST" class="space-y-5 mt-8">
+        <div>
+          <label class="block text-sm font-medium mb-2 text-slate-700">Email</label>
+          <input type="email" name="email" required class="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2 text-slate-700">Password</label>
+          <input type="password" name="password" required class="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+        </div>
+        <button type="submit" class="w-full rounded-full bg-slate-950 text-white font-semibold py-3 shadow-lg shadow-slate-950/20 hover:bg-slate-800 transition-colors">
+          Login
+        </button>
+      </form>
+
+      <p class="text-sm mt-6 text-slate-600">
+        No account?
+        <a href="{{ url_for('signup') }}" class="font-semibold text-slate-950 underline underline-offset-4">Create one</a>
+      </p>
+    </div>
+  </div>
 </div>
 {% endblock %}

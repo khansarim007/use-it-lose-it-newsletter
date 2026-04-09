@@ -1,45 +1,55 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="flex flex-wrap justify-between items-center gap-3 mb-4">
-  <h1 class="text-2xl font-semibold">Subscribers</h1>
-  <div class="flex gap-2">
-    <a href="{{ url_for('subscribers', status='all') }}" class="px-3 py-1.5 rounded {% if filter_status == 'all' %}bg-slate-900 text-white{% else %}bg-white{% endif %}">All</a>
-    <a href="{{ url_for('subscribers', status='active') }}" class="px-3 py-1.5 rounded {% if filter_status == 'active' %}bg-slate-900 text-white{% else %}bg-white{% endif %}">Active</a>
-    <a href="{{ url_for('subscribers', status='inactive') }}" class="px-3 py-1.5 rounded {% if filter_status == 'inactive' %}bg-slate-900 text-white{% else %}bg-white{% endif %}">Inactive</a>
-    <a href="{{ url_for('subscribers', status='removed') }}" class="px-3 py-1.5 rounded {% if filter_status == 'removed' %}bg-slate-900 text-white{% else %}bg-white{% endif %}">Removed</a>
-  </div>
-</div>
+<div class="space-y-6">
+  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">Subscriber management</div>
+        <h1 class="text-3xl font-black tracking-tight text-slate-950">Subscribers</h1>
+        <p class="mt-2 text-slate-600">Filter and review your active, inactive, and removed subscribers.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('subscribers', status='all') }}" class="px-4 py-2 rounded-full border {% if filter_status == 'all' %}bg-slate-950 text-white border-slate-950{% else %}bg-white text-slate-700 border-slate-200{% endif %}">All</a>
+        <a href="{{ url_for('subscribers', status='active') }}" class="px-4 py-2 rounded-full border {% if filter_status == 'active' %}bg-slate-950 text-white border-slate-950{% else %}bg-white text-slate-700 border-slate-200{% endif %}">Active</a>
+        <a href="{{ url_for('subscribers', status='inactive') }}" class="px-4 py-2 rounded-full border {% if filter_status == 'inactive' %}bg-slate-950 text-white border-slate-950{% else %}bg-white text-slate-700 border-slate-200{% endif %}">Inactive</a>
+        <a href="{{ url_for('subscribers', status='removed') }}" class="px-4 py-2 rounded-full border {% if filter_status == 'removed' %}bg-slate-950 text-white border-slate-950{% else %}bg-white text-slate-700 border-slate-200{% endif %}">Removed</a>
+      </div>
+    </div>
+  </section>
 
-<div class="bg-white rounded-xl shadow-sm overflow-x-auto">
-  <table class="min-w-full text-sm">
-    <thead class="bg-slate-50 text-left">
-      <tr>
-        <th class="px-4 py-3">Email</th>
-        <th class="px-4 py-3">Status</th>
-        <th class="px-4 py-3">Last Opened</th>
-        <th class="px-4 py-3">Last Clicked</th>
-        <th class="px-4 py-3">Created</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sub in subscribers %}
-      <tr class="border-t border-slate-100">
-        <td class="px-4 py-3">{{ sub.email }}</td>
-        <td class="px-4 py-3">
-          <span class="px-2 py-1 rounded text-xs {% if sub.status == 'active' %}bg-emerald-100 text-emerald-800{% elif sub.status == 'inactive' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
-            {{ sub.status }}
-          </span>
-        </td>
-        <td class="px-4 py-3">{{ sub.last_opened_at or '-' }}</td>
-        <td class="px-4 py-3">{{ sub.last_clicked_at or '-' }}</td>
-        <td class="px-4 py-3">{{ sub.created_at }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="5" class="px-4 py-6 text-center text-slate-500">No subscribers found.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-slate-600 uppercase tracking-wide text-xs">
+          <tr>
+            <th class="px-6 py-4">Email</th>
+            <th class="px-6 py-4">Status</th>
+            <th class="px-6 py-4">Last Opened</th>
+            <th class="px-6 py-4">Last Clicked</th>
+            <th class="px-6 py-4">Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in subscribers %}
+          <tr class="border-t border-slate-100 hover:bg-slate-50/70 transition-colors">
+            <td class="px-6 py-4 font-medium text-slate-900">{{ sub.email }}</td>
+            <td class="px-6 py-4">
+              <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if sub.status == 'active' %}bg-emerald-100 text-emerald-800{% elif sub.status == 'inactive' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">
+                {{ sub.status }}
+              </span>
+            </td>
+            <td class="px-6 py-4 text-slate-600">{{ sub.last_opened_at or '-' }}</td>
+            <td class="px-6 py-4 text-slate-600">{{ sub.last_clicked_at or '-' }}</td>
+            <td class="px-6 py-4 text-slate-600">{{ sub.created_at }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="px-6 py-10 text-center text-slate-500">No subscribers found.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}

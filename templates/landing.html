@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="space-y-16 sm:space-y-20 py-6 sm:py-10">
+  <section class="text-center max-w-5xl mx-auto">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/80 border border-slate-200 text-sm text-slate-700 mb-6 shadow-sm">
+      <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+      Cull your dead list without manual cleanup
+    </div>
+    <h1 class="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight text-slate-950 leading-[0.95]">
+      Delete dead subscribers.
+      <span class="block text-emerald-700 mt-3">Double your open rates.</span>
+    </h1>
+    <p class="mt-5 sm:mt-6 text-base sm:text-lg md:text-xl text-slate-600 max-w-3xl mx-auto leading-relaxed px-2 sm:px-0">
+      CullList automatically identifies inactive subscribers so you only keep people who actually read your emails.
+    </p>
+    <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 px-2 sm:px-0">
+      <a href="{{ url_for('signup') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-slate-950 text-white font-semibold shadow-lg shadow-slate-950/20 hover:-translate-y-0.5 transition-transform">
+        Get Started
+      </a>
+      <a href="{{ url_for('login') }}" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-slate-900 font-semibold border border-slate-200 hover:border-slate-300 transition-colors">
+        Login
+      </a>
+    </div>
+  </section>
+
+  <section class="max-w-6xl mx-auto grid lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 bg-white/85 backdrop-blur rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
+      <h2 class="text-2xl font-bold mb-6">How it works</h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="text-sm font-semibold text-emerald-700 mb-2">Step 1</div>
+          <div class="text-lg font-semibold">Upload your list</div>
+          <p class="text-slate-600 mt-2 text-sm">Import a CSV of subscribers in seconds.</p>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="text-sm font-semibold text-emerald-700 mb-2">Step 2</div>
+          <div class="text-lg font-semibold">We analyze engagement</div>
+          <p class="text-slate-600 mt-2 text-sm">Track opens, clicks, and activity over time.</p>
+        </div>
+        <div class="p-5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div class="text-sm font-semibold text-emerald-700 mb-2">Step 3</div>
+          <div class="text-lg font-semibold">Remove inactive subscribers</div>
+          <p class="text-slate-600 mt-2 text-sm">Keep only people who actually engage.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-slate-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl shadow-slate-900/20">
+      <h2 class="text-2xl font-bold mb-4">What you get</h2>
+      <ul class="space-y-4 text-slate-200">
+        <li>Boost open rates instantly</li>
+        <li>Improve email deliverability</li>
+        <li>Stop paying for inactive users</li>
+        <li>Build a high-quality audience</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="max-w-6xl mx-auto grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm">
+      <div class="text-sm font-semibold text-slate-500 mb-3">Before</div>
+      <div class="space-y-3 text-lg font-medium text-slate-800">
+        <div>1,000 subscribers</div>
+        <div>32% open rate</div>
+      </div>
+    </div>
+    <div class="bg-emerald-50 rounded-3xl border border-emerald-200 p-6 sm:p-8 shadow-sm">
+      <div class="text-sm font-semibold text-emerald-700 mb-3">After</div>
+      <div class="space-y-3 text-lg font-medium text-slate-900">
+        <div>420 subscribers</div>
+        <div>71% open rate</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="max-w-4xl mx-auto text-center bg-white rounded-3xl border border-slate-200 p-6 sm:p-10 shadow-sm">
+    <h2 class="text-3xl md:text-4xl font-black tracking-tight text-slate-950">Start cleaning your list today</h2>
+    <p class="mt-4 text-slate-600 text-base sm:text-lg">No manual cleanup. No dead weight. Just a tighter, more engaged audience.</p>
+    <a href="{{ url_for('signup') }}" class="inline-flex items-center justify-center mt-8 px-6 py-3 rounded-full bg-emerald-600 text-white font-semibold shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-colors">
+      Get Started
+    </a>
+  </section>
+</div>
+{% endblock %}

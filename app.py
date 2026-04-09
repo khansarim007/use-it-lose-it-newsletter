@@ -152,14 +152,17 @@ def apply_engagement_rules(user_id):
 
 
 @app.route("/")
-def home():
+def landing():
     if session.get("user_id"):
         return redirect(url_for("dashboard"))
-    return redirect(url_for("login"))
+    return render_template("landing.html")
 
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -191,6 +194,9 @@ def signup():
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
+    if session.get("user_id"):
+        return redirect(url_for("dashboard"))
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
@@ -216,7 +222,7 @@ def login():
 def logout():
     session.clear()
     flash("Logged out.", "success")
-    return redirect(url_for("login"))
+    return redirect(url_for("landing"))
 
 
 @app.route("/dashboard")

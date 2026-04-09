@@ -1,8 +1,19 @@
 body {
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .prose a {
   color: #0f172a;
   text-decoration: underline;
+}
+
+::selection {
+  background: #a7f3d0;
+  color: #064e3b;
+}
+
+html {
+  scroll-behavior: smooth;
 }

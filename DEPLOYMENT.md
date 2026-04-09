@@ -1,6 +1,6 @@
-# Deployment Guide
+# CullList Deployment Guide
 
-Your Flask app is now ready for production deployment. Follow the steps below for your chosen platform.
+Your CullList app is now ready for production deployment. Follow the steps below for your chosen platform.
 
 ---
 
