@@ -33,3 +33,12 @@ Simple MVP SaaS tool for newsletter engagement management.
 4. Dashboard already shows mixed statuses and engagement metrics.
 5. Go to Upload CSV and upload sample_subscribers.csv.
 6. Go to Compose and generate a tracked email for any subscriber.
+
+## Deployment
+
+Ready to deploy? See [DEPLOYMENT.md](DEPLOYMENT.md) for:
+- Step-by-step GitHub setup
+- Render deployment (recommended)
+- Railway deployment (alternative)
+- Environment variable configuration
+- Production troubleshooting
