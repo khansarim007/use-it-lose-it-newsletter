@@ -42,3 +42,16 @@ Ready to deploy? See [DEPLOYMENT.md](DEPLOYMENT.md) for:
 - Railway deployment (alternative)
 - Environment variable configuration
 - Production troubleshooting
+
+## Integrations
+
+Set these environment variables before connecting platforms:
+
+- `SECRET_KEY`
+- `MAILCHIMP_CLIENT_ID`
+- `MAILCHIMP_CLIENT_SECRET`
+- `MAILCHIMP_LIST_ID`
+- `MAILCHIMP_REDIRECT_URI` (optional, defaults to the app route)
+- `BEEHIIV_PUBLICATION_ID`
+
+ConvertKit and Beehiiv connections use API keys entered in the dashboard.

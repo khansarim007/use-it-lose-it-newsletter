@@ -220,5 +220,19 @@ Once deployed:
 - [x] Git initialized and committed
 - [x] .gitignore created
 - [x] SQLite ready for production
+- [x] Integration modules added for Mailchimp, ConvertKit, and Beehiiv
+
+## Integration Environment Variables
+
+Add these in Render or Railway if you want to use platform integrations:
+
+- `SECRET_KEY`
+- `MAILCHIMP_CLIENT_ID`
+- `MAILCHIMP_CLIENT_SECRET`
+- `MAILCHIMP_LIST_ID`
+- `MAILCHIMP_REDIRECT_URI` (optional)
+- `BEEHIIV_PUBLICATION_ID`
+
+ConvertKit and Beehiiv API keys are entered in the app UI after login.
 
 You're ready to deploy! Choose Render or Railway and follow the steps above.

@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-2xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 text-center">
+  <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm font-semibold mb-4">Cleanup preview</div>
+  <h1 class="text-3xl font-black tracking-tight text-slate-950">{{ count }} subscribers will be removed</h1>
+  <p class="mt-4 text-slate-600">This will remove inactive subscribers from {{ platform_label }} only after you confirm.</p>
+
+  <form method="POST" action="{{ url_for('delete_platform_subscribers_route', platform=platform) }}" class="mt-8">
+    <button type="submit" class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-rose-600 text-white font-semibold shadow-lg shadow-rose-600/20 hover:bg-rose-700 transition-colors">
+      Remove inactive subscribers from platform
+    </button>
+  </form>
+
+  <a href="{{ url_for('dashboard') }}" class="inline-flex items-center justify-center mt-4 px-6 py-3 rounded-full bg-slate-100 text-slate-900 font-semibold hover:bg-slate-200 transition-colors">
+    Back to dashboard
+  </a>
+</div>
+{% endblock %}

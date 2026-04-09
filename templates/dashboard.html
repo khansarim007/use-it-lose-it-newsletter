@@ -8,7 +8,7 @@
           Live dashboard
         </div>
         <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-950">Dashboard</h1>
-        <p class="mt-3 text-slate-600 max-w-2xl">Monitor engagement, cull inactive subscribers, and keep your list high quality.</p>
+        <p class="mt-3 text-slate-600 max-w-2xl">Monitor engagement, connect your newsletter platform, and keep your list high quality.</p>
       </div>
       <div class="flex flex-wrap gap-3">
         <form method="POST" action="{{ url_for('clean_list') }}">
@@ -18,6 +18,58 @@
           <button class="px-5 py-3 rounded-full bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-colors">Send warning email</button>
         </form>
       </div>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">
+          Connect your platform
+        </div>
+        <h2 class="text-2xl md:text-3xl font-black tracking-tight text-slate-950">Skip CSV uploads.</h2>
+        <p class="mt-2 text-slate-600 max-w-2xl">Connect Mailchimp, ConvertKit, or Beehiiv and CullList will pull subscribers automatically.</p>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-4 mt-6">
+      {% for card in platform_cards %}
+      <div class="rounded-3xl border border-slate-200 p-5 bg-slate-50/80">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-bold text-slate-950">{{ card.label }}</h3>
+            <p class="mt-1 text-sm text-slate-600">{{ card.description }}</p>
+          </div>
+          {% if card.connected %}
+            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Connected</span>
+          {% else %}
+            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">Not connected</span>
+          {% endif %}
+        </div>
+
+        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div class="rounded-2xl bg-white border border-slate-200 p-3">
+            <p class="text-slate-500">Synced</p>
+            <p class="mt-1 font-semibold text-slate-950">{{ card.subscriber_count }}</p>
+          </div>
+          <div class="rounded-2xl bg-white border border-slate-200 p-3">
+            <p class="text-slate-500">Removable</p>
+            <p class="mt-1 font-semibold text-slate-950">{{ card.removable_count }}</p>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-col gap-2">
+          {% if card.connected %}
+            <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
+              <button class="w-full rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors">Sync now</button>
+            </form>
+            <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-rose-600 text-white font-semibold py-2.5 hover:bg-rose-700 transition-colors text-center">Remove inactive subscribers from platform</a>
+          {% else %}
+            <a href="{{ url_for('connect_' ~ card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors text-center">{{ card.connect_label }}</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
     </div>
   </section>
 
