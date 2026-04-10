@@ -24,9 +24,11 @@ from flask import (
 )
 
 from integrations.beehiiv import delete_subscriber as delete_beehiiv_subscriber
+from integrations.beehiiv import fetch_publications as fetch_beehiiv_publications
 from integrations.beehiiv import fetch_subscribers as fetch_beehiiv_subscribers
 from integrations.common import parse_iso_datetime, safe_json_dumps, safe_json_loads
 from integrations.convertkit import delete_subscriber as delete_convertkit_subscriber
+from integrations.convertkit import fetch_forms as fetch_convertkit_forms
 from integrations.convertkit import fetch_subscribers as fetch_convertkit_subscribers
 from integrations.mailchimp import build_authorize_url as build_mailchimp_authorize_url
 from integrations.mailchimp import delete_subscriber as delete_mailchimp_subscriber
@@ -291,7 +293,8 @@ def fetch_platform_subscribers(user_id, platform):
         return fetch_mailchimp_subscribers(integration["access_token"], server_prefix, list_id)
 
     if platform == "convertkit":
-        return fetch_convertkit_subscribers(integration["api_key"])
+        form_id = integration.get("extra_data", {}).get("form_id")
+        return fetch_convertkit_subscribers(integration["api_key"], form_id=form_id)
 
     if platform == "beehiiv":
         publication_id = integration.get("extra_data", {}).get("publication_id") or os.environ.get("BEEHIIV_PUBLICATION_ID")
@@ -741,13 +744,8 @@ def connect_convertkit():
                 placeholder="ck_...",
             )
 
-        upsert_integration(session["user_id"], "convertkit", api_key=api_key, extra_data={})
-        try:
-            inserted, updated = sync_platform(session["user_id"], "convertkit", initial_sync=True)
-            flash(f"ConvertKit connected. Synced {inserted + updated} subscribers.", "success")
-        except Exception as error:
-            flash(f"ConvertKit saved, but sync failed: {error}", "error")
-        return redirect(url_for("dashboard"))
+        session["convertkit_api_key"] = api_key
+        return redirect(url_for("select_convertkit_form"))
 
     return render_template(
         "connect.html",
@@ -757,6 +755,59 @@ def connect_convertkit():
         description="Paste your ConvertKit API key and pull subscribers directly into CullList.",
         field_label="ConvertKit API key",
         placeholder="ck_...",
+    )
+
+
+@app.route("/select_convertkit_form", methods=["GET", "POST"])
+@login_required
+def select_convertkit_form():
+    user = current_user()
+    api_key = session.get("convertkit_api_key")
+
+    if not api_key:
+        flash("ConvertKit session expired. Please connect again.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        forms = fetch_convertkit_forms(api_key)
+    except Exception as error:
+        session.pop("convertkit_api_key", None)
+        flash(f"Failed to load ConvertKit forms: {error}", "error")
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        form_id = request.form.get("form_id", "").strip()
+        if not form_id:
+            flash("Please select a ConvertKit form.", "error")
+        else:
+            try:
+                upsert_integration(user["id"], "convertkit", api_key=api_key, extra_data={"form_id": form_id})
+                inserted, updated = sync_platform(user["id"], "convertkit", initial_sync=True)
+                flash(f"ConvertKit connected. Synced {inserted + updated} subscribers.", "success")
+                session.pop("convertkit_api_key", None)
+                return redirect(url_for("dashboard"))
+            except Exception as error:
+                flash(f"Failed to sync ConvertKit form: {error}", "error")
+
+    return render_template(
+        "select_source.html",
+        title="Select ConvertKit Form",
+        description="Choose the form whose subscribers should sync into CullList.",
+        source_label="ConvertKit",
+        source_type_label="form",
+        options=[
+            {
+                "id": form.get("id"),
+                "name": form.get("name") or f"Form {form.get('id')}",
+                "detail": form.get("type") or ("archived" if form.get("archived") else "active"),
+            }
+            for form in forms
+        ],
+        option_value_key="id",
+        option_label_key="name",
+        option_detail_key="detail",
+        empty_message="No ConvertKit forms were found in this account.",
+        submit_label="Sync This Form",
     )
 
 
@@ -777,18 +828,8 @@ def connect_beehiiv():
                 placeholder="beehiiv_...",
             )
 
-        upsert_integration(
-            session["user_id"],
-            "beehiiv",
-            api_key=api_key,
-            extra_data={"publication_id": os.environ.get("BEEHIIV_PUBLICATION_ID")},
-        )
-        try:
-            inserted, updated = sync_platform(session["user_id"], "beehiiv", initial_sync=True)
-            flash(f"Beehiiv connected. Synced {inserted + updated} subscribers.", "success")
-        except Exception as error:
-            flash(f"Beehiiv saved, but sync failed: {error}", "error")
-        return redirect(url_for("dashboard"))
+        session["beehiiv_api_key"] = api_key
+        return redirect(url_for("select_beehiiv_publication"))
 
     return render_template(
         "connect.html",
@@ -798,6 +839,61 @@ def connect_beehiiv():
         description="Paste your Beehiiv API key and sync subscriber data automatically.",
         field_label="Beehiiv API key",
         placeholder="beehiiv_...",
+    )
+
+
+@app.route("/select_beehiiv_publication", methods=["GET", "POST"])
+@login_required
+def select_beehiiv_publication():
+    user = current_user()
+    api_key = session.get("beehiiv_api_key")
+
+    if not api_key:
+        flash("Beehiiv session expired. Please connect again.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        publications = fetch_beehiiv_publications(api_key)
+    except Exception:
+        publications = []
+
+    fallback_publication_id = os.environ.get("BEEHIIV_PUBLICATION_ID")
+    if not publications and fallback_publication_id:
+        publications = [{"id": fallback_publication_id, "name": fallback_publication_id}]
+
+    if request.method == "POST":
+        publication_id = request.form.get("publication_id", "").strip() or fallback_publication_id
+        if not publication_id:
+            flash("Please select a Beehiiv publication.", "error")
+        else:
+            try:
+                upsert_integration(user["id"], "beehiiv", api_key=api_key, extra_data={"publication_id": publication_id})
+                inserted, updated = sync_platform(user["id"], "beehiiv", initial_sync=True)
+                flash(f"Beehiiv connected. Synced {inserted + updated} subscribers.", "success")
+                session.pop("beehiiv_api_key", None)
+                return redirect(url_for("dashboard"))
+            except Exception as error:
+                flash(f"Failed to sync Beehiiv publication: {error}", "error")
+
+    return render_template(
+        "select_source.html",
+        title="Select Beehiiv Publication",
+        description="Choose the publication whose subscribers should sync into CullList.",
+        source_label="Beehiiv",
+        source_type_label="publication",
+        options=[
+            {
+                "id": publication.get("id"),
+                "name": publication.get("name") or publication.get("title") or f"Publication {publication.get('id')}",
+                "detail": publication.get("id"),
+            }
+            for publication in publications
+        ],
+        option_value_key="id",
+        option_label_key="name",
+        option_detail_key="detail",
+        empty_message="No Beehiiv publications were found in this account.",
+        submit_label="Sync This Publication",
     )
 
 

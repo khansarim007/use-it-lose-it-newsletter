@@ -14,9 +14,22 @@ def _request_json(url, method="GET", headers=None, data=None):
         return json.loads(response.read().decode("utf-8"))
 
 
-def fetch_subscribers(api_key):
-    url = f"{BASE_URL}/subscribers?{urlencode({'api_key': api_key})}"
-    payload = _request_json(url)
+def _auth_headers(api_key):
+    return {"X-Kit-Api-Key": api_key}
+
+
+def fetch_forms(api_key):
+    payload = _request_json(f"{BASE_URL}/forms", headers=_auth_headers(api_key))
+    return payload.get("forms", [])
+
+
+def fetch_subscribers(api_key, form_id=None):
+    if form_id:
+        url = f"{BASE_URL}/forms/{form_id}/subscribers"
+    else:
+        url = f"{BASE_URL}/subscribers"
+    url = f"{url}?{urlencode({'api_key': api_key})}"
+    payload = _request_json(url, headers=_auth_headers(api_key))
     normalized = []
 
     for subscriber in payload.get("subscribers", []):
@@ -30,12 +43,13 @@ def fetch_subscribers(api_key):
         normalized.append(
             normalize_subscriber_record(
                 email=email,
-                last_open=subscriber.get("last_open_at") or subscriber.get("created_at"),
+                last_open=subscriber.get("added_at") or subscriber.get("last_open_at") or subscriber.get("created_at"),
                 engagement_score=engagement_score,
                 source_ref=str(subscriber.get("id") or email),
                 source_data={
                     "platform": "convertkit",
                     "convertkit_id": subscriber.get("id"),
+                    "form_id": form_id,
                     "tags": tags,
                     "state": subscriber.get("state"),
                 },

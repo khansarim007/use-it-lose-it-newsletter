@@ -17,6 +17,11 @@ def _auth_headers(api_key):
     return {"Authorization": f"Bearer {api_key}"}
 
 
+def fetch_publications(api_key):
+    payload = _request_json(f"{BASE_URL}/publications", headers=_auth_headers(api_key))
+    return payload.get("data") or payload.get("publications") or payload.get("items") or []
+
+
 def fetch_subscribers(api_key, publication_id):
     if not publication_id:
         raise ValueError("Missing Beehiiv publication ID")
