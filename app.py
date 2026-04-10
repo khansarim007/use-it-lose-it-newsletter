@@ -505,6 +505,20 @@ def is_valid_email(email):
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email or ""))
 
 
+def password_validation_error(password):
+    if len(password or "") < 8:
+        return "Password must be at least 8 characters long."
+    if not re.search(r"[a-z]", password):
+        return "Password must include at least one lowercase letter."
+    if not re.search(r"[A-Z]", password):
+        return "Password must include at least one uppercase letter."
+    if not re.search(r"\d", password):
+        return "Password must include at least one number."
+    if not re.search(r"[^A-Za-z0-9]", password):
+        return "Password must include at least one special character."
+    return None
+
+
 def now_iso():
     return datetime.utcnow().isoformat()
 
@@ -558,8 +572,9 @@ def signup():
             flash("Please provide a valid email address.", "error")
             return render_template("signup.html")
 
-        if len(password) < 6:
-            flash("Password must be at least 6 characters.", "error")
+        password_error = password_validation_error(password)
+        if password_error:
+            flash(password_error, "error")
             return render_template("signup.html")
 
         password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
