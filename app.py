@@ -230,6 +230,15 @@ def upsert_integration(user_id, platform, access_token=None, api_key=None, extra
     db.commit()
 
 
+def remove_integration(user_id, platform):
+    db = get_db()
+    db.execute(
+        "DELETE FROM integrations WHERE user_id = ? AND platform = ?",
+        (user_id, platform),
+    )
+    db.commit()
+
+
 def get_integration(user_id, platform):
     db = get_db()
     row = db.execute(
@@ -999,6 +1008,56 @@ def delete_platform_subscribers_route(platform):
         flash(f"Removed {removed} inactive subscribers from {PLATFORM_CONFIG[platform]['label']}.", "success")
     except Exception as error:
         flash(f"Cleanup failed for {PLATFORM_CONFIG[platform]['label']}: {error}", "error")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/integrations/<platform>/disconnect")
+@login_required
+def preview_disconnect_integration(platform):
+    if platform not in PLATFORM_CONFIG:
+        abort(404)
+
+    integration = get_integration(session["user_id"], platform)
+    if not integration:
+        flash(f"{PLATFORM_CONFIG[platform]['label']} is not connected.", "error")
+        return redirect(url_for("dashboard"))
+
+    db = get_db()
+    count_row = db.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM subscribers
+        WHERE user_id = ? AND source_platform = ?
+        """,
+        (session["user_id"], platform),
+    ).fetchone()
+    synced_count = count_row["count"] or 0
+
+    return render_template(
+        "preview_disconnect.html",
+        platform=platform,
+        platform_label=PLATFORM_CONFIG[platform]["label"],
+        synced_count=synced_count,
+    )
+
+
+@app.route("/integrations/<platform>/disconnect", methods=["POST"])
+@login_required
+def disconnect_integration(platform):
+    if platform not in PLATFORM_CONFIG:
+        abort(404)
+
+    integration = get_integration(session["user_id"], platform)
+    if not integration:
+        flash(f"{PLATFORM_CONFIG[platform]['label']} is not connected.", "error")
+        return redirect(url_for("dashboard"))
+
+    try:
+        remove_integration(session["user_id"], platform)
+        flash(f"Disconnected {PLATFORM_CONFIG[platform]['label']} successfully.", "success")
+    except Exception as error:
+        flash(f"Failed to disconnect {PLATFORM_CONFIG[platform]['label']}: {error}", "error")
+
     return redirect(url_for("dashboard"))
 
 

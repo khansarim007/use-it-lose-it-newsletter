@@ -63,6 +63,7 @@
             <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
               <button class="w-full rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors">Sync now</button>
             </form>
+            <a href="{{ url_for('preview_disconnect_integration', platform=card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-slate-200 text-slate-900 font-semibold py-2.5 hover:bg-slate-300 transition-colors text-center">Disconnect platform</a>
             <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-rose-600 text-white font-semibold py-2.5 hover:bg-rose-700 transition-colors text-center">Remove inactive subscribers from platform</a>
           {% else %}
             <a href="{{ url_for('connect_' ~ card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors text-center">{{ card.connect_label }}</a>
