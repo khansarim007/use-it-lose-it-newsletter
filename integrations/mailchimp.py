@@ -9,6 +9,7 @@ from .common import normalize_subscriber_record
 
 MAILCHIMP_AUTH_URL = "https://login.mailchimp.com/oauth2/authorize"
 MAILCHIMP_TOKEN_URL = "https://login.mailchimp.com/oauth2/token"
+MAILCHIMP_METADATA_URL = "https://login.mailchimp.com/oauth2/metadata"
 
 
 def _request_json(url, method="GET", headers=None, data=None):
@@ -41,6 +42,11 @@ def exchange_code_for_token(client_id, client_secret, code, redirect_uri):
     ).encode("utf-8")
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     return _request_json(MAILCHIMP_TOKEN_URL, method="POST", headers=headers, data=payload)
+
+
+def fetch_oauth_metadata(access_token):
+    headers = {"Authorization": f"OAuth {access_token}"}
+    return _request_json(MAILCHIMP_METADATA_URL, headers=headers)
 
 
 def _auth_headers(access_token):

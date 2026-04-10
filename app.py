@@ -32,6 +32,7 @@ from integrations.mailchimp import build_authorize_url as build_mailchimp_author
 from integrations.mailchimp import delete_subscriber as delete_mailchimp_subscriber
 from integrations.mailchimp import exchange_code_for_token as exchange_mailchimp_code
 from integrations.mailchimp import fetch_lists as fetch_mailchimp_lists
+from integrations.mailchimp import fetch_oauth_metadata as fetch_mailchimp_metadata
 from integrations.mailchimp import fetch_subscribers as fetch_mailchimp_subscribers
 
 
@@ -642,6 +643,11 @@ def connect_mailchimp():
         try:
             token_data = exchange_mailchimp_code(client_id, client_secret, code, redirect_uri)
             server_prefix = token_data.get("dc") or token_data.get("server_prefix")
+            if not server_prefix and token_data.get("access_token"):
+                metadata = fetch_mailchimp_metadata(token_data.get("access_token"))
+                api_endpoint = metadata.get("api_endpoint", "")
+                if api_endpoint:
+                    server_prefix = api_endpoint.split("//")[-1].split(".")[0]
             if not server_prefix:
                 raise ValueError("Mailchimp response missing server prefix")
             list_id = os.environ.get("MAILCHIMP_LIST_ID")
