@@ -24,10 +24,15 @@ from flask import (
 )
 
 from integrations.beehiiv import delete_subscriber as delete_beehiiv_subscriber
+from integrations.beehiiv import build_authorize_url as build_beehiiv_authorize_url
+from integrations.beehiiv import exchange_code_for_token as exchange_beehiiv_code
 from integrations.beehiiv import fetch_publications as fetch_beehiiv_publications
 from integrations.beehiiv import fetch_subscribers as fetch_beehiiv_subscribers
 from integrations.common import parse_iso_datetime, safe_json_dumps, safe_json_loads
 from integrations.convertkit import delete_subscriber as delete_convertkit_subscriber
+from integrations.convertkit import delete_subscriber_with_token as delete_convertkit_subscriber_with_token
+from integrations.convertkit import build_authorize_url as build_convertkit_authorize_url
+from integrations.convertkit import exchange_code_for_token as exchange_convertkit_code
 from integrations.convertkit import fetch_forms as fetch_convertkit_forms
 from integrations.convertkit import fetch_subscribers as fetch_convertkit_subscribers
 from integrations.mailchimp import build_authorize_url as build_mailchimp_authorize_url
@@ -53,12 +58,12 @@ PLATFORM_CONFIG = {
     "convertkit": {
         "label": "ConvertKit",
         "connect_label": "Connect ConvertKit",
-        "description": "Pull subscribers from ConvertKit with your API key.",
+        "description": "Connect ConvertKit with OAuth and sync subscribers without API keys.",
     },
     "beehiiv": {
         "label": "Beehiiv",
         "connect_label": "Connect Beehiiv",
-        "description": "Fetch Beehiiv subscribers and clean the inactive ones.",
+        "description": "Connect Beehiiv with OAuth and sync subscribers automatically.",
     },
 }
 
@@ -293,12 +298,16 @@ def fetch_platform_subscribers(user_id, platform):
         return fetch_mailchimp_subscribers(integration["access_token"], server_prefix, list_id)
 
     if platform == "convertkit":
+        access_token = integration.get("access_token")
+        api_key = integration.get("api_key")
         form_id = integration.get("extra_data", {}).get("form_id")
-        return fetch_convertkit_subscribers(integration["api_key"], form_id=form_id)
+        return fetch_convertkit_subscribers(access_token=access_token, api_key=api_key, form_id=form_id)
 
     if platform == "beehiiv":
+        access_token = integration.get("access_token")
+        api_key = integration.get("api_key")
         publication_id = integration.get("extra_data", {}).get("publication_id") or os.environ.get("BEEHIIV_PUBLICATION_ID")
-        return fetch_beehiiv_subscribers(integration["api_key"], publication_id)
+        return fetch_beehiiv_subscribers(access_token or api_key, publication_id)
 
     raise ValueError("Unsupported platform")
 
@@ -428,10 +437,15 @@ def cleanup_platform_subscribers(user_id, platform):
             list_id = extra.get("list_id") or os.environ.get("MAILCHIMP_LIST_ID")
             delete_mailchimp_subscriber(integration["access_token"], server_prefix, list_id, row["email"])
         elif platform == "convertkit":
-            delete_convertkit_subscriber(integration["api_key"], source_data.get("convertkit_id") or row["source_ref"])
+            subscriber_id = source_data.get("convertkit_id") or row["source_ref"]
+            if integration.get("access_token"):
+                delete_convertkit_subscriber_with_token(integration.get("access_token"), subscriber_id)
+            else:
+                delete_convertkit_subscriber(integration.get("api_key"), subscriber_id)
         elif platform == "beehiiv":
             publication_id = integration.get("extra_data", {}).get("publication_id") or os.environ.get("BEEHIIV_PUBLICATION_ID")
-            delete_beehiiv_subscriber(integration["api_key"], publication_id, source_data.get("beehiiv_id") or row["source_ref"])
+            token = integration.get("access_token") or integration.get("api_key")
+            delete_beehiiv_subscriber(token, publication_id, source_data.get("beehiiv_id") or row["source_ref"])
         else:
             raise ValueError("Unsupported platform")
 
@@ -730,48 +744,63 @@ def select_mailchimp_audience():
 @app.route("/connect/convertkit", methods=["GET", "POST"])
 @login_required
 def connect_convertkit():
-    if request.method == "POST":
-        api_key = request.form.get("api_key", "").strip()
-        if not api_key:
-            flash("Enter your ConvertKit API key.", "error")
-            return render_template(
-                "connect.html",
-                platform="convertkit",
-                platform_label="ConvertKit",
-                title="Connect ConvertKit",
-                description="Paste your ConvertKit API key and pull subscribers directly into CullList.",
-                field_label="ConvertKit API key",
-                placeholder="ck_...",
-            )
+    code = request.args.get("code")
+    state = request.args.get("state")
 
-        session["convertkit_api_key"] = api_key
-        return redirect(url_for("select_convertkit_form"))
+    if code:
+        expected_state = session.pop("convertkit_state", None)
+        if not expected_state or state != expected_state:
+            flash("ConvertKit connection failed. Please try again.", "error")
+            return redirect(url_for("dashboard"))
 
-    return render_template(
-        "connect.html",
-        platform="convertkit",
-        platform_label="ConvertKit",
-        title="Connect ConvertKit",
-        description="Paste your ConvertKit API key and pull subscribers directly into CullList.",
-        field_label="ConvertKit API key",
-        placeholder="ck_...",
-    )
+        client_id = os.environ.get("CONVERTKIT_CLIENT_ID")
+        client_secret = os.environ.get("CONVERTKIT_CLIENT_SECRET")
+        redirect_uri = os.environ.get("CONVERTKIT_REDIRECT_URI") or url_for("connect_convertkit", _external=True)
+        if not client_id or not client_secret:
+            flash("Set CONVERTKIT_CLIENT_ID and CONVERTKIT_CLIENT_SECRET.", "error")
+            return redirect(url_for("dashboard"))
+
+        try:
+            token_data = exchange_convertkit_code(client_id, client_secret, code, redirect_uri)
+            access_token = token_data.get("access_token")
+            if not access_token:
+                raise ValueError("ConvertKit OAuth token missing access_token")
+            session["convertkit_token"] = access_token
+            session["convertkit_refresh_token"] = token_data.get("refresh_token")
+            return redirect(url_for("select_convertkit_form"))
+        except Exception as error:
+            flash(f"ConvertKit connection failed: {error}", "error")
+            return redirect(url_for("dashboard"))
+
+    client_id = os.environ.get("CONVERTKIT_CLIENT_ID")
+    client_secret = os.environ.get("CONVERTKIT_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        flash("Set CONVERTKIT_CLIENT_ID and CONVERTKIT_CLIENT_SECRET before connecting ConvertKit.", "error")
+        return redirect(url_for("dashboard"))
+
+    state_token = secrets.token_urlsafe(24)
+    session["convertkit_state"] = state_token
+    redirect_uri = os.environ.get("CONVERTKIT_REDIRECT_URI") or url_for("connect_convertkit", _external=True)
+    scope = os.environ.get("CONVERTKIT_SCOPE", "forms:read subscribers:read")
+    authorize_url = build_convertkit_authorize_url(client_id, redirect_uri, state_token, scope)
+    return redirect(authorize_url)
 
 
 @app.route("/select_convertkit_form", methods=["GET", "POST"])
 @login_required
 def select_convertkit_form():
     user = current_user()
-    api_key = session.get("convertkit_api_key")
+    access_token = session.get("convertkit_token")
 
-    if not api_key:
+    if not access_token:
         flash("ConvertKit session expired. Please connect again.", "error")
         return redirect(url_for("dashboard"))
 
     try:
-        forms = fetch_convertkit_forms(api_key)
+        forms = fetch_convertkit_forms(access_token=access_token)
     except Exception as error:
-        session.pop("convertkit_api_key", None)
+        session.pop("convertkit_token", None)
+        session.pop("convertkit_refresh_token", None)
         flash(f"Failed to load ConvertKit forms: {error}", "error")
         return redirect(url_for("dashboard"))
 
@@ -781,10 +810,15 @@ def select_convertkit_form():
             flash("Please select a ConvertKit form.", "error")
         else:
             try:
-                upsert_integration(user["id"], "convertkit", api_key=api_key, extra_data={"form_id": form_id})
+                extra_data = {
+                    "form_id": form_id,
+                    "refresh_token": session.get("convertkit_refresh_token"),
+                }
+                upsert_integration(user["id"], "convertkit", access_token=access_token, api_key=None, extra_data=extra_data)
                 inserted, updated = sync_platform(user["id"], "convertkit", initial_sync=True)
                 flash(f"ConvertKit connected. Synced {inserted + updated} subscribers.", "success")
-                session.pop("convertkit_api_key", None)
+                session.pop("convertkit_token", None)
+                session.pop("convertkit_refresh_token", None)
                 return redirect(url_for("dashboard"))
             except Exception as error:
                 flash(f"Failed to sync ConvertKit form: {error}", "error")
@@ -814,46 +848,60 @@ def select_convertkit_form():
 @app.route("/connect/beehiiv", methods=["GET", "POST"])
 @login_required
 def connect_beehiiv():
-    if request.method == "POST":
-        api_key = request.form.get("api_key", "").strip()
-        if not api_key:
-            flash("Enter your Beehiiv API key.", "error")
-            return render_template(
-                "connect.html",
-                platform="beehiiv",
-                platform_label="Beehiiv",
-                title="Connect Beehiiv",
-                description="Paste your Beehiiv API key and sync subscriber data automatically.",
-                field_label="Beehiiv API key",
-                placeholder="beehiiv_...",
-            )
+    code = request.args.get("code")
+    state = request.args.get("state")
 
-        session["beehiiv_api_key"] = api_key
-        return redirect(url_for("select_beehiiv_publication"))
+    if code:
+        expected_state = session.pop("beehiiv_state", None)
+        if not expected_state or state != expected_state:
+            flash("Beehiiv connection failed. Please try again.", "error")
+            return redirect(url_for("dashboard"))
 
-    return render_template(
-        "connect.html",
-        platform="beehiiv",
-        platform_label="Beehiiv",
-        title="Connect Beehiiv",
-        description="Paste your Beehiiv API key and sync subscriber data automatically.",
-        field_label="Beehiiv API key",
-        placeholder="beehiiv_...",
-    )
+        client_id = os.environ.get("BEEHIIV_CLIENT_ID")
+        client_secret = os.environ.get("BEEHIIV_CLIENT_SECRET")
+        redirect_uri = os.environ.get("BEEHIIV_REDIRECT_URI") or url_for("connect_beehiiv", _external=True)
+        if not client_id or not client_secret:
+            flash("Set BEEHIIV_CLIENT_ID and BEEHIIV_CLIENT_SECRET.", "error")
+            return redirect(url_for("dashboard"))
+
+        try:
+            token_data = exchange_beehiiv_code(client_id, client_secret, code, redirect_uri)
+            access_token = token_data.get("access_token")
+            if not access_token:
+                raise ValueError("Beehiiv OAuth token missing access_token")
+            session["beehiiv_token"] = access_token
+            session["beehiiv_refresh_token"] = token_data.get("refresh_token")
+            return redirect(url_for("select_beehiiv_publication"))
+        except Exception as error:
+            flash(f"Beehiiv connection failed: {error}", "error")
+            return redirect(url_for("dashboard"))
+
+    client_id = os.environ.get("BEEHIIV_CLIENT_ID")
+    client_secret = os.environ.get("BEEHIIV_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        flash("Set BEEHIIV_CLIENT_ID and BEEHIIV_CLIENT_SECRET before connecting Beehiiv.", "error")
+        return redirect(url_for("dashboard"))
+
+    state_token = secrets.token_urlsafe(24)
+    session["beehiiv_state"] = state_token
+    redirect_uri = os.environ.get("BEEHIIV_REDIRECT_URI") or url_for("connect_beehiiv", _external=True)
+    scope = os.environ.get("BEEHIIV_SCOPE", "publications:read subscriptions:read")
+    authorize_url = build_beehiiv_authorize_url(client_id, redirect_uri, state_token, scope)
+    return redirect(authorize_url)
 
 
 @app.route("/select_beehiiv_publication", methods=["GET", "POST"])
 @login_required
 def select_beehiiv_publication():
     user = current_user()
-    api_key = session.get("beehiiv_api_key")
+    access_token = session.get("beehiiv_token")
 
-    if not api_key:
+    if not access_token:
         flash("Beehiiv session expired. Please connect again.", "error")
         return redirect(url_for("dashboard"))
 
     try:
-        publications = fetch_beehiiv_publications(api_key)
+        publications = fetch_beehiiv_publications(access_token)
     except Exception:
         publications = []
 
@@ -867,10 +915,15 @@ def select_beehiiv_publication():
             flash("Please select a Beehiiv publication.", "error")
         else:
             try:
-                upsert_integration(user["id"], "beehiiv", api_key=api_key, extra_data={"publication_id": publication_id})
+                extra_data = {
+                    "publication_id": publication_id,
+                    "refresh_token": session.get("beehiiv_refresh_token"),
+                }
+                upsert_integration(user["id"], "beehiiv", access_token=access_token, api_key=None, extra_data=extra_data)
                 inserted, updated = sync_platform(user["id"], "beehiiv", initial_sync=True)
                 flash(f"Beehiiv connected. Synced {inserted + updated} subscribers.", "success")
-                session.pop("beehiiv_api_key", None)
+                session.pop("beehiiv_token", None)
+                session.pop("beehiiv_refresh_token", None)
                 return redirect(url_for("dashboard"))
             except Exception as error:
                 flash(f"Failed to sync Beehiiv publication: {error}", "error")

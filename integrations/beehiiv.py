@@ -1,16 +1,47 @@
 import json
+import os
+from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from .common import normalize_subscriber_record
 
 BASE_URL = "https://api.beehiiv.com/v2"
+BEEHIIV_AUTHORIZE_URL = os.environ.get("BEEHIIV_AUTHORIZE_URL", "https://app.beehiiv.com/oauth2/authorize")
+BEEHIIV_TOKEN_URL = os.environ.get("BEEHIIV_TOKEN_URL", "https://api.beehiiv.com/v2/oauth2/token")
 
 
 def _request_json(url, method="GET", headers=None, data=None):
     request = Request(url, data=data, headers=headers or {}, method=method)
     with urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def build_authorize_url(client_id, redirect_uri, state, scope):
+    query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "state": state,
+            "scope": scope,
+        }
+    )
+    return f"{BEEHIIV_AUTHORIZE_URL}?{query}"
+
+
+def exchange_code_for_token(client_id, client_secret, code, redirect_uri):
+    payload = urlencode(
+        {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        }
+    ).encode("utf-8")
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    return _request_json(BEEHIIV_TOKEN_URL, method="POST", headers=headers, data=payload)
 
 
 def _auth_headers(api_key):

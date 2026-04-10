@@ -231,8 +231,23 @@ Add these in Render or Railway if you want to use platform integrations:
 - `MAILCHIMP_CLIENT_SECRET`
 - `MAILCHIMP_LIST_ID`
 - `MAILCHIMP_REDIRECT_URI` (optional)
+- `CONVERTKIT_CLIENT_ID`
+- `CONVERTKIT_CLIENT_SECRET`
+- `CONVERTKIT_REDIRECT_URI` (optional)
+- `CONVERTKIT_SCOPE` (optional, default: `forms:read subscribers:read`)
 - `BEEHIIV_PUBLICATION_ID`
+- `BEEHIIV_CLIENT_ID`
+- `BEEHIIV_CLIENT_SECRET`
+- `BEEHIIV_REDIRECT_URI` (optional)
+- `BEEHIIV_SCOPE` (optional, default: `publications:read subscriptions:read`)
 
-ConvertKit and Beehiiv API keys are entered in the app UI after login.
+Optional endpoint overrides (only if provider docs change):
+
+- `CONVERTKIT_AUTHORIZE_URL`
+- `CONVERTKIT_TOKEN_URL`
+- `BEEHIIV_AUTHORIZE_URL`
+- `BEEHIIV_TOKEN_URL`
+
+ConvertKit and Beehiiv now connect through OAuth, similar to Mailchimp.
 
 You're ready to deploy! Choose Render or Railway and follow the steps above.

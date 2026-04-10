@@ -52,6 +52,21 @@ Set these environment variables before connecting platforms:
 - `MAILCHIMP_CLIENT_SECRET`
 - `MAILCHIMP_LIST_ID`
 - `MAILCHIMP_REDIRECT_URI` (optional, defaults to the app route)
+- `CONVERTKIT_CLIENT_ID`
+- `CONVERTKIT_CLIENT_SECRET`
+- `CONVERTKIT_REDIRECT_URI` (optional, defaults to the app route)
+- `CONVERTKIT_SCOPE` (optional, default: `forms:read subscribers:read`)
 - `BEEHIIV_PUBLICATION_ID`
+- `BEEHIIV_CLIENT_ID`
+- `BEEHIIV_CLIENT_SECRET`
+- `BEEHIIV_REDIRECT_URI` (optional, defaults to the app route)
+- `BEEHIIV_SCOPE` (optional, default: `publications:read subscriptions:read`)
 
-ConvertKit and Beehiiv connections use API keys entered in the dashboard.
+Optional endpoint overrides (only if provider docs change):
+
+- `CONVERTKIT_AUTHORIZE_URL`
+- `CONVERTKIT_TOKEN_URL`
+- `BEEHIIV_AUTHORIZE_URL`
+- `BEEHIIV_TOKEN_URL`
+
+ConvertKit and Beehiiv now use OAuth in the app, just like Mailchimp.
