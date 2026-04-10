@@ -31,6 +31,7 @@ from integrations.convertkit import fetch_subscribers as fetch_convertkit_subscr
 from integrations.mailchimp import build_authorize_url as build_mailchimp_authorize_url
 from integrations.mailchimp import delete_subscriber as delete_mailchimp_subscriber
 from integrations.mailchimp import exchange_code_for_token as exchange_mailchimp_code
+from integrations.mailchimp import fetch_lists as fetch_mailchimp_lists
 from integrations.mailchimp import fetch_subscribers as fetch_mailchimp_subscribers
 
 
@@ -274,6 +275,18 @@ def fetch_platform_subscribers(user_id, platform):
         extra = integration.get("extra_data") or {}
         server_prefix = extra.get("server_prefix")
         list_id = extra.get("list_id") or os.environ.get("MAILCHIMP_LIST_ID")
+        if not list_id and server_prefix and integration.get("access_token"):
+            lists = fetch_mailchimp_lists(integration["access_token"], server_prefix)
+            if lists:
+                list_id = lists[0].get("id")
+                extra["list_id"] = list_id
+                upsert_integration(
+                    user_id,
+                    "mailchimp",
+                    access_token=integration.get("access_token"),
+                    api_key=integration.get("api_key"),
+                    extra_data=extra,
+                )
         return fetch_mailchimp_subscribers(integration["access_token"], server_prefix, list_id)
 
     if platform == "convertkit":
@@ -631,9 +644,15 @@ def connect_mailchimp():
             server_prefix = token_data.get("dc") or token_data.get("server_prefix")
             if not server_prefix:
                 raise ValueError("Mailchimp response missing server prefix")
+            list_id = os.environ.get("MAILCHIMP_LIST_ID")
+            if not list_id:
+                lists = fetch_mailchimp_lists(token_data.get("access_token"), server_prefix)
+                if not lists:
+                    raise ValueError("No Mailchimp audiences found in this account")
+                list_id = lists[0].get("id")
             extra_data = {
                 "server_prefix": server_prefix,
-                "list_id": os.environ.get("MAILCHIMP_LIST_ID"),
+                "list_id": list_id,
             }
             upsert_integration(user["id"], "mailchimp", access_token=token_data.get("access_token"), extra_data=extra_data)
             inserted, updated = sync_platform(user["id"], "mailchimp")

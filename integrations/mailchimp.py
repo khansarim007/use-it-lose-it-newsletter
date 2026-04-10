@@ -48,6 +48,12 @@ def _auth_headers(access_token):
     return {"Authorization": f"Basic {token}"}
 
 
+def fetch_lists(access_token, server_prefix):
+    url = f"https://{server_prefix}.api.mailchimp.com/3.0/lists?count=100"
+    payload = _request_json(url, headers=_auth_headers(access_token))
+    return payload.get("lists", [])
+
+
 def fetch_subscribers(access_token, server_prefix, list_id):
     if not list_id:
         raise ValueError("Missing Mailchimp list ID")
