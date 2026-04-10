@@ -781,7 +781,7 @@ def connect_convertkit():
     state_token = secrets.token_urlsafe(24)
     session["convertkit_state"] = state_token
     redirect_uri = os.environ.get("CONVERTKIT_REDIRECT_URI") or url_for("connect_convertkit", _external=True)
-    scope = os.environ.get("CONVERTKIT_SCOPE", "forms:read subscribers:read")
+    scope = (os.environ.get("CONVERTKIT_SCOPE") or "").strip()
     authorize_url = build_convertkit_authorize_url(client_id, redirect_uri, state_token, scope)
     return redirect(authorize_url)
 

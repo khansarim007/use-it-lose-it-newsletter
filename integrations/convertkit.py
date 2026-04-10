@@ -18,16 +18,16 @@ def _request_json(url, method="GET", headers=None, data=None):
         return json.loads(response.read().decode("utf-8"))
 
 
-def build_authorize_url(client_id, redirect_uri, state, scope):
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "state": state,
-            "scope": scope,
-        }
-    )
+def build_authorize_url(client_id, redirect_uri, state, scope=None):
+    payload = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "state": state,
+    }
+    if scope:
+        payload["scope"] = scope
+    query = urlencode(payload)
     return f"{KIT_AUTHORIZE_URL}?{query}"
 
 

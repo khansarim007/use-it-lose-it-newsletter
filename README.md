@@ -55,7 +55,7 @@ Set these environment variables before connecting platforms:
 - `CONVERTKIT_CLIENT_ID`
 - `CONVERTKIT_CLIENT_SECRET`
 - `CONVERTKIT_REDIRECT_URI` (optional, defaults to the app route)
-- `CONVERTKIT_SCOPE` (optional, default: `forms:read subscribers:read`)
+- `CONVERTKIT_SCOPE` (optional, leave unset unless Kit support gives exact scopes for your app)
 - `BEEHIIV_PUBLICATION_ID`
 - `BEEHIIV_CLIENT_ID`
 - `BEEHIIV_CLIENT_SECRET`
