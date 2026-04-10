@@ -300,7 +300,7 @@ def fetch_platform_subscribers(user_id, platform):
     raise ValueError("Unsupported platform")
 
 
-def upsert_platform_subscribers(user_id, platform, records):
+def upsert_platform_subscribers(user_id, platform, records, initial_sync=False):
     db = get_db()
     inserted = 0
     updated = 0
@@ -312,7 +312,8 @@ def upsert_platform_subscribers(user_id, platform, records):
 
         source_ref = record.get("source_ref") or email
         source_data = record.get("source_data") or {}
-        status = classify_engagement(record.get("last_open"), None, source_data)
+        # For initial sync, mark new records as active; otherwise classify engagement
+        status = "active" if initial_sync else classify_engagement(record.get("last_open"), None, source_data)
         last_open = record.get("last_open")
         engagement_score = source_data.get("engagement_score")
         last_clicked = last_open if engagement_score is not None and int(engagement_score) >= 70 else None
@@ -371,9 +372,9 @@ def upsert_platform_subscribers(user_id, platform, records):
     return inserted, updated
 
 
-def sync_platform(user_id, platform):
+def sync_platform(user_id, platform, initial_sync=False):
     records = fetch_platform_subscribers(user_id, platform)
-    return upsert_platform_subscribers(user_id, platform, records)
+    return upsert_platform_subscribers(user_id, platform, records, initial_sync=initial_sync)
 
 
 def sync_all_platforms(user_id):
@@ -650,23 +651,13 @@ def connect_mailchimp():
                     server_prefix = api_endpoint.split("//")[-1].split(".")[0]
             if not server_prefix:
                 raise ValueError("Mailchimp response missing server prefix")
-            list_id = os.environ.get("MAILCHIMP_LIST_ID")
-            if not list_id:
-                lists = fetch_mailchimp_lists(token_data.get("access_token"), server_prefix)
-                if not lists:
-                    raise ValueError("No Mailchimp audiences found in this account")
-                list_id = lists[0].get("id")
-            extra_data = {
-                "server_prefix": server_prefix,
-                "list_id": list_id,
-            }
-            upsert_integration(user["id"], "mailchimp", access_token=token_data.get("access_token"), extra_data=extra_data)
-            inserted, updated = sync_platform(user["id"], "mailchimp")
-            flash(f"Mailchimp connected. Synced {inserted + updated} subscribers.", "success")
+            # Store token and server_prefix in session to use in audience picker
+            session["mailchimp_token"] = token_data.get("access_token")
+            session["mailchimp_server_prefix"] = server_prefix
+            return redirect(url_for("select_mailchimp_audience"))
         except Exception as error:
             flash(f"Mailchimp connection failed: {error}", "error")
-
-        return redirect(url_for("dashboard"))
+            return redirect(url_for("dashboard"))
 
     client_id = os.environ.get("MAILCHIMP_CLIENT_ID")
     client_secret = os.environ.get("MAILCHIMP_CLIENT_SECRET")
@@ -679,6 +670,58 @@ def connect_mailchimp():
     redirect_uri = os.environ.get("MAILCHIMP_REDIRECT_URI") or url_for("connect_mailchimp", _external=True)
     authorize_url = build_mailchimp_authorize_url(client_id, redirect_uri, state_token)
     return redirect(authorize_url)
+
+
+@app.route("/select_mailchimp_audience", methods=["GET", "POST"])
+@login_required
+def select_mailchimp_audience():
+    user = current_user()
+    access_token = session.get("mailchimp_token")
+    server_prefix = session.get("mailchimp_server_prefix")
+    
+    if not access_token or not server_prefix:
+        flash("Mailchimp session expired. Please try connecting again.", "error")
+        return redirect(url_for("dashboard"))
+    
+    if request.method == "POST":
+        list_id = request.form.get("audience_id", "").strip()
+        if not list_id:
+            flash("Please select an audience.", "error")
+        else:
+            try:
+                extra_data = {
+                    "server_prefix": server_prefix,
+                    "list_id": list_id,
+                }
+                upsert_integration(user["id"], "mailchimp", access_token=access_token, extra_data=extra_data)
+                # Mark initial sync so new contacts start as active
+                inserted, updated = sync_platform(user["id"], "mailchimp", initial_sync=True)
+                flash(f"Mailchimp connected. Synced {inserted + updated} subscribers.", "success")
+                # Clean up session
+                session.pop("mailchimp_token", None)
+                session.pop("mailchimp_server_prefix", None)
+                return redirect(url_for("dashboard"))
+            except Exception as error:
+                flash(f"Failed to sync audience: {error}", "error")
+        return render_template(
+            "select_mailchimp_audience.html",
+            audiences=[],
+            selected_audience=list_id,
+        )
+    
+    # Fetch audiences to display
+    try:
+        audiences = fetch_mailchimp_lists(access_token, server_prefix)
+    except Exception as error:
+        flash(f"Failed to load audiences: {error}", "error")
+        session.pop("mailchimp_token", None)
+        session.pop("mailchimp_server_prefix", None)
+        return redirect(url_for("dashboard"))
+    
+    return render_template(
+        "select_mailchimp_audience.html",
+        audiences=audiences,
+    )
 
 
 @app.route("/connect/convertkit", methods=["GET", "POST"])
@@ -700,7 +743,7 @@ def connect_convertkit():
 
         upsert_integration(session["user_id"], "convertkit", api_key=api_key, extra_data={})
         try:
-            inserted, updated = sync_platform(session["user_id"], "convertkit")
+            inserted, updated = sync_platform(session["user_id"], "convertkit", initial_sync=True)
             flash(f"ConvertKit connected. Synced {inserted + updated} subscribers.", "success")
         except Exception as error:
             flash(f"ConvertKit saved, but sync failed: {error}", "error")
@@ -741,7 +784,7 @@ def connect_beehiiv():
             extra_data={"publication_id": os.environ.get("BEEHIIV_PUBLICATION_ID")},
         )
         try:
-            inserted, updated = sync_platform(session["user_id"], "beehiiv")
+            inserted, updated = sync_platform(session["user_id"], "beehiiv", initial_sync=True)
             flash(f"Beehiiv connected. Synced {inserted + updated} subscribers.", "success")
         except Exception as error:
             flash(f"Beehiiv saved, but sync failed: {error}", "error")
