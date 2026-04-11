@@ -364,6 +364,25 @@ def get_latest_pending_clean(user_id):
     return item
 
 
+def get_latest_clean_report(user_id):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT *
+        FROM pending_clean
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (user_id,),
+    ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["data_snapshot"] = safe_json_loads(item.get("data_snapshot"), [])
+    return item
+
+
 def get_pending_clean(user_id, pending_id):
     db = get_db()
     row = db.execute(
@@ -974,6 +993,7 @@ def dashboard():
     platform_cards = build_platform_cards(user["id"])
     auto_clean_settings = get_auto_clean_settings(user["id"])
     pending_clean = get_latest_pending_clean(user["id"])
+    latest_clean_report = get_latest_clean_report(user["id"])
     integrations_connected = has_connected_platform(user["id"])
 
     return render_template(
@@ -985,6 +1005,7 @@ def dashboard():
         platform_cards=platform_cards,
         auto_clean_settings=auto_clean_settings,
         pending_clean=pending_clean,
+        latest_clean_report=latest_clean_report,
         integrations_connected=integrations_connected,
     )
 
