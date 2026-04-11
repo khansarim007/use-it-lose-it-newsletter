@@ -1,210 +1,216 @@
 ﻿{% extends 'base.html' %}
 {% block content %}
-<div class="space-y-8">
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal">
-    <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-950">Dashboard</h1>
-    <p class="mt-2 text-slate-600">Your audience quality overview</p>
-  </section>
+{% set active_ratio = (active_count / total * 100) if total else 0 %}
+{% set inactive_ratio = (inactive_count / total * 100) if total else 0 %}
 
-  {% if cleaned_count is not none %}
-  <section class="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 md:p-6 reveal delay-1">
-    <h3 class="text-2xl font-black text-emerald-900">{{ cleaned_count }} inactive subscribers removed</h3>
-    <p class="mt-2 text-emerald-800">You now have a high-quality audience of {{ engaged_readers or active_count }} engaged readers.</p>
-  </section>
-  {% endif %}
+<section class="dashboard-shell">
+  <div class="dashboard-glow dashboard-glow-a"></div>
+  <div class="dashboard-glow dashboard-glow-b"></div>
 
-  {% if has_data %}
-  <section class="grid sm:grid-cols-2 xl:grid-cols-4 gap-6 reveal delay-1">
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
-      <p class="text-sm text-slate-500">Total Subscribers</p>
-      <p class="mt-2 text-4xl font-black text-slate-950">{{ total }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
-      <p class="text-sm text-slate-500">Real Audience (Active)</p>
-      <p class="mt-2 text-4xl font-black text-emerald-700">{{ active_count }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
-      <p class="text-sm text-slate-500">Inactive Subscribers</p>
-      <p class="mt-2 text-4xl font-black text-rose-700">{{ inactive_count }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
-      <p class="text-sm text-slate-500">Engagement %</p>
-      <p class="mt-2 text-4xl font-black text-slate-950">{{ engagement_percent }}%</p>
-    </div>
-  </section>
+  <div class="dashboard-frame grid lg:grid-cols-[240px_1fr]">
+    <aside class="dashboard-sidebar p-5 sm:p-6">
+      <div class="flex items-center gap-2 text-slate-950 font-bold text-xl">
+        <span class="h-7 w-7 rounded-full bg-lime-300 text-slate-950 inline-flex items-center justify-center text-sm">✶</span>
+        CullList
+      </div>
 
-  <section class="bg-rose-50 border border-rose-200 rounded-3xl p-5 md:p-6 soft-pulse reveal delay-2">
-    <p class="text-lg md:text-xl font-bold text-rose-900">{{ never_read_percent }}% of your subscribers never read your emails.</p>
-  </section>
+      <div class="mt-7 space-y-2">
+        <a href="{{ url_for('dashboard') }}" class="dashboard-nav-link active">Overview <span>•</span></a>
+        <a href="{{ url_for('subscribers') }}" class="dashboard-nav-link">Subscribers</a>
+        <a href="{{ url_for('upload_csv') }}" class="dashboard-nav-link">Upload CSV</a>
+        <a href="{{ url_for('compose_email') }}" class="dashboard-nav-link">Composer</a>
+        <a href="#settings" class="dashboard-nav-link">Auto-Clean Settings</a>
+      </div>
 
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-2">
-    {% if first_connected_platform %}
-      <a href="{{ url_for('preview_platform_delete', platform=first_connected_platform) }}" class="btn-action btn-action-primary w-full md:w-auto md:px-10">Remove inactive subscribers</a>
-    {% else %}
-      <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800 text-sm">Connect a platform to remove inactive subscribers.</div>
-    {% endif %}
-  </section>
+      <div class="mt-8 rounded-xl border border-slate-200 bg-white p-4">
+        <p class="text-xs uppercase tracking-wide text-slate-500">Account</p>
+        <p class="mt-1 text-sm font-semibold text-slate-900">{{ user.email }}</p>
+        <a href="{{ url_for('logout') }}" class="btn-action mt-4 w-full bg-slate-900 text-white hover:bg-slate-800">Logout</a>
+      </div>
+    </aside>
 
-  <section class="grid md:grid-cols-2 gap-6 reveal delay-2">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 hover-lift">
-      <h3 class="text-lg font-bold text-slate-900">Before</h3>
-      <div class="mt-4 space-y-3">
-        <div>
-          <p class="text-sm text-slate-500">Subscribers</p>
-          <p class="text-3xl font-black text-slate-950">{{ before_total }}</p>
+    <div class="p-5 sm:p-6 lg:p-7 space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="relative max-w-sm w-full">
+          <input type="text" placeholder="Search subscribers" class="input-premium pl-10" />
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
         </div>
-        <div>
-          <p class="text-sm text-slate-500">Open rate</p>
-          <p class="text-3xl font-black text-slate-950">{{ before_open_rate }}%</p>
+        <div class="flex gap-2">
+          <a href="{{ url_for('subscribers') }}" class="btn-action bg-white border border-slate-300 text-slate-700 hover:bg-slate-100">View list</a>
+          {% if first_connected_platform %}
+            <a href="{{ url_for('preview_platform_delete', platform=first_connected_platform) }}" class="btn-action btn-action-primary">Clean now</a>
+          {% else %}
+            <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary">Upload data</a>
+          {% endif %}
         </div>
       </div>
-    </div>
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 hover-lift">
-      <h3 class="text-lg font-bold text-slate-900">After</h3>
-      <div class="mt-4 space-y-3">
-        <div>
-          <p class="text-sm text-slate-500">Subscribers</p>
-          <p class="text-3xl font-black text-emerald-700">{{ after_total }}</p>
-        </div>
-        <div>
-          <p class="text-sm text-slate-500">Open rate</p>
-          <p class="text-3xl font-black text-emerald-700">{{ after_open_rate }}%</p>
-        </div>
-      </div>
-    </div>
-  </section>
-  {% else %}
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-10 text-center reveal delay-2">
-    <h2 class="text-2xl md:text-3xl font-black tracking-tight text-slate-950">No audience data yet</h2>
-    <p class="mt-3 text-slate-600">Upload your list to see how many subscribers actually read your emails.</p>
-    <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary mt-6 inline-flex">Upload CSV</a>
-  </section>
-  {% endif %}
 
-  {% if pending_clean %}
-  <section class="bg-amber-50 border border-amber-200 rounded-3xl p-5 md:p-6 reveal delay-3">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-      <div>
-        <h3 class="text-xl font-black text-amber-900">Auto-Clean report ready</h3>
-        <p class="mt-1 text-amber-800">You have {{ pending_clean.inactive_count }} inactive subscribers ready to be removed.</p>
-      </div>
-      <a href="{{ url_for('review_clean', pending_id=pending_clean.id) }}" class="btn-action btn-action-primary">Review &amp; Clean</a>
-    </div>
-  </section>
-  {% endif %}
+      <section class="dashboard-stat-card reveal">
+        <h1 class="text-4xl font-black tracking-tight text-slate-950">Your overview</h1>
+        <p class="mt-2 text-slate-600">Monitor engagement quality, cleanup opportunities, and platform sync status.</p>
+      </section>
 
-  <section id="settings" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-3">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
-      <div>
-        <h2 class="text-2xl font-black tracking-tight text-slate-950">Auto-Clean Settings</h2>
-        <p class="mt-1 text-slate-600">Detect inactive subscribers on a schedule and always require your approval before removal.</p>
-      </div>
-      {% if not integrations_connected %}
-      <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">Connect a platform first</span>
+      {% if cleaned_count is not none %}
+      <section class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 reveal delay-1">
+        <h3 class="text-lg font-black text-emerald-900">{{ cleaned_count }} inactive subscribers removed</h3>
+        <p class="text-sm text-emerald-800 mt-1">You now have {{ engaged_readers or active_count }} engaged readers.</p>
+      </section>
       {% endif %}
-    </div>
 
-    {% if not integrations_connected %}
-      <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800 text-sm">
-        Connect your platform to enable Auto-Clean.
-      </div>
-    {% endif %}
+      {% if has_data %}
+      <section class="grid xl:grid-cols-3 gap-4 reveal delay-1">
+        <article class="dashboard-stat-card hover-lift">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-base font-bold text-slate-900">Audience split</h3>
+            <span class="text-xs text-slate-500">Updated now</span>
+          </div>
+          <div class="mt-4 space-y-3 text-sm">
+            <div>
+              <div class="flex justify-between text-slate-600"><span>Active</span><span>{{ active_count }}</span></div>
+              <div class="dashboard-bar-track mt-1"><div class="dashboard-bar-fill bg-lime-400" style="width: {{ active_ratio }}%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-slate-600"><span>Inactive/Removed</span><span>{{ inactive_count }}</span></div>
+              <div class="dashboard-bar-track mt-1"><div class="dashboard-bar-fill bg-orange-500" style="width: {{ inactive_ratio }}%"></div></div>
+            </div>
+          </div>
+          <p class="mt-4 text-xs text-slate-500">Total subscribers: {{ total }}</p>
+        </article>
 
-    <form method="POST" action="{{ url_for('update_auto_clean_settings_route') }}" class="grid md:grid-cols-3 gap-4 items-end mt-4">
-      <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 bg-slate-50 md:col-span-1 {% if not integrations_connected %}opacity-60{% endif %}">
-        <input type="checkbox" name="enabled" {% if auto_clean_settings.enabled %}checked{% endif %} {% if not integrations_connected %}disabled{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500">
-        <span class="text-sm font-medium text-slate-800">Enable Auto-Clean</span>
-      </label>
+        <article class="dashboard-stat-card hover-lift">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-base font-bold text-slate-900">Engagement</h3>
+            <span class="text-xs text-slate-500">Last period</span>
+          </div>
+          <p class="mt-2 text-3xl font-black text-slate-900">{{ engagement_percent }}%</p>
+          <p class="text-xs text-slate-500">Open rate {{ open_rate }}% • Click rate {{ click_rate }}%</p>
+          <svg class="dashboard-mini-chart mt-3 w-full" viewBox="0 0 240 100" preserveAspectRatio="none" aria-hidden="true">
+            <polyline fill="none" stroke="#2563eb" stroke-width="3" points="0,80 40,74 80,40 120,62 160,38 200,50 240,26"></polyline>
+          </svg>
+        </article>
 
-      <div class="md:col-span-1">
-        <label class="block text-sm font-medium text-slate-700 mb-2">Frequency</label>
-        <select name="frequency" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400" {% if not integrations_connected %}disabled{% endif %}>
-          <option value="daily" {% if auto_clean_settings.frequency == 'daily' %}selected{% endif %}>Daily</option>
-          <option value="weekly" {% if auto_clean_settings.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
-          <option value="monthly" {% if auto_clean_settings.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
-        </select>
-      </div>
+        <article class="dashboard-stat-card hover-lift">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-base font-bold text-slate-900">Cleanup risk</h3>
+            <span class="text-xs text-slate-500">Current</span>
+          </div>
+          <p class="mt-2 text-3xl font-black text-orange-600">{{ never_read_percent }}%</p>
+          <p class="text-xs text-slate-500">Subscribers who never engage</p>
+          <div class="mt-4 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900">
+            Recommended: run a cleanup to improve deliverability.
+          </div>
+        </article>
+      </section>
 
-      <div class="md:col-span-1">
-        <button type="submit" class="btn-action btn-action-primary w-full" {% if not integrations_connected %}disabled{% endif %}>Save settings</button>
-      </div>
-    </form>
+      <section class="grid xl:grid-cols-3 gap-4 reveal delay-2">
+        <article class="dashboard-stat-card xl:col-span-2 hover-lift">
+          <h3 class="text-base font-bold text-slate-900">Before vs After</h3>
+          <div class="mt-4 grid sm:grid-cols-2 gap-3">
+            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-slate-500">Before</p>
+              <p class="mt-1 text-2xl font-black text-slate-900">{{ before_total }}</p>
+              <p class="text-sm text-slate-600">Open rate {{ before_open_rate }}%</p>
+            </div>
+            <div class="rounded-xl border border-lime-200 bg-lime-50 p-3">
+              <p class="text-xs uppercase tracking-wide text-lime-700">After</p>
+              <p class="mt-1 text-2xl font-black text-lime-700">{{ after_total }}</p>
+              <p class="text-sm text-lime-900">Open rate {{ after_open_rate }}%</p>
+            </div>
+          </div>
+        </article>
 
-    <div class="grid sm:grid-cols-2 gap-3 mt-5">
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Last Auto-Clean run</p>
-        <p class="mt-2 text-sm text-slate-900">
-          {% if auto_clean_settings.last_run_at %}
-            {{ auto_clean_settings.last_run_at }}
-          {% else %}
-            Never
+        <article class="dashboard-stat-card hover-lift">
+          <h3 class="text-base font-bold text-slate-900">Auto-Clean status</h3>
+          <div class="mt-4 space-y-2 text-sm">
+            <p class="text-slate-700"><span class="font-semibold">Enabled:</span> {{ 'Yes' if auto_clean_settings.enabled else 'No' }}</p>
+            <p class="text-slate-700"><span class="font-semibold">Frequency:</span> {{ auto_clean_settings.frequency|capitalize }}</p>
+            <p class="text-slate-700"><span class="font-semibold">Last run:</span> {{ auto_clean_settings.last_run_at or 'Never' }}</p>
+            <p class="text-slate-700"><span class="font-semibold">Last report:</span> {% if latest_clean_report %}{{ latest_clean_report.created_at }}{% else %}No report{% endif %}</p>
+          </div>
+          {% if pending_clean %}
+          <a href="{{ url_for('review_clean', pending_id=pending_clean.id) }}" class="btn-action btn-action-primary w-full mt-4">Review {{ pending_clean.inactive_count }} to clean</a>
           {% endif %}
-        </p>
-      </div>
-      <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Last report</p>
-        <p class="mt-2 text-sm text-slate-900">
-          {% if latest_clean_report %}
-            {{ latest_clean_report.created_at }} ({{ latest_clean_report.status }})
-          {% else %}
-            No report yet
-          {% endif %}
-        </p>
-      </div>
-    </div>
-  </section>
+        </article>
+      </section>
+      {% else %}
+      <section class="dashboard-stat-card text-center reveal delay-1">
+        <h2 class="text-2xl font-black text-slate-900">No audience data yet</h2>
+        <p class="mt-2 text-slate-600">Upload your list to unlock engagement analytics.</p>
+        <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary mt-5">Upload CSV</a>
+      </section>
+      {% endif %}
 
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-3">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-      <div>
-        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">
-          Connect your platform
-        </div>
-        <h2 class="text-2xl md:text-3xl font-black tracking-tight text-slate-950">Skip CSV uploads.</h2>
-        <p class="mt-2 text-slate-600 max-w-2xl">Connect Mailchimp, ConvertKit, or Beehiiv and CullList will pull subscribers automatically.</p>
-      </div>
-    </div>
-
-    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-      {% for card in platform_cards %}
-      <div class="platform-card rounded-3xl border border-slate-200 p-5 bg-white/90 flex flex-col">
-        <div class="flex items-start justify-between gap-3">
+      <section id="settings" class="dashboard-stat-card reveal delay-2">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h3 class="text-lg font-bold text-slate-950">{{ card.label }}</h3>
-            <p class="mt-1 text-sm text-slate-600">{{ card.description }}</p>
+            <h3 class="text-lg font-bold text-slate-900">Auto-Clean Settings</h3>
+            <p class="text-sm text-slate-600 mt-1">Always requires your approval before removal.</p>
           </div>
-          {% if card.connected %}
-            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Connected</span>
-          {% else %}
-            <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-200 text-slate-700">Not connected</span>
+          {% if not integrations_connected %}
+            <span class="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">Connect a platform first</span>
           {% endif %}
         </div>
 
-        <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3">
-            <p class="text-slate-500">Synced</p>
-            <p class="mt-1 font-semibold text-slate-950">{{ card.subscriber_count }}</p>
-          </div>
-          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3">
-            <p class="text-slate-500">Removable</p>
-            <p class="mt-1 font-semibold text-slate-950">{{ card.removable_count }}</p>
-          </div>
-        </div>
+        <form method="POST" action="{{ url_for('update_auto_clean_settings_route') }}" class="grid md:grid-cols-3 gap-3 items-end mt-4">
+          <label class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 bg-slate-50 {% if not integrations_connected %}opacity-60{% endif %}">
+            <input type="checkbox" name="enabled" {% if auto_clean_settings.enabled %}checked{% endif %} {% if not integrations_connected %}disabled{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500">
+            <span class="text-sm font-medium text-slate-800">Enable Auto-Clean</span>
+          </label>
+          <select name="frequency" class="input-premium" {% if not integrations_connected %}disabled{% endif %}>
+            <option value="daily" {% if auto_clean_settings.frequency == 'daily' %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if auto_clean_settings.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if auto_clean_settings.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+          </select>
+          <button type="submit" class="btn-action btn-action-primary w-full" {% if not integrations_connected %}disabled{% endif %}>Save settings</button>
+        </form>
+      </section>
 
-        <div class="mt-5 flex flex-col gap-2.5">
-          {% if card.connected %}
-            <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
-              <button class="btn-platform btn-platform-primary">Sync now</button>
-            </form>
-            <a href="{{ url_for('preview_disconnect_integration', platform=card.platform) }}" class="btn-platform btn-platform-muted">Disconnect platform</a>
-            <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="btn-platform btn-platform-danger">Remove inactive subscribers</a>
-          {% else %}
-            <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">{{ card.connect_label }}</a>
-          {% endif %}
+      <section class="dashboard-stat-card reveal delay-3">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <h3 class="text-lg font-bold text-slate-900">Connected Platforms</h3>
+          <p class="text-sm text-slate-500">Sync and clean directly from your ESP</p>
         </div>
-      </div>
-      {% endfor %}
+        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+          {% for card in platform_cards %}
+          <article class="rounded-xl border border-slate-200 bg-white p-4 hover-lift">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="font-semibold text-slate-900">{{ card.label }}</h4>
+                <p class="text-xs text-slate-500 mt-1">{{ card.description }}</p>
+              </div>
+              {% if card.connected %}
+                <span class="px-2 py-1 rounded-full text-[11px] font-semibold bg-lime-100 text-lime-800">Connected</span>
+              {% else %}
+                <span class="px-2 py-1 rounded-full text-[11px] font-semibold bg-slate-200 text-slate-700">Not connected</span>
+              {% endif %}
+            </div>
+
+            <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+              <div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                <p class="text-slate-500">Synced</p>
+                <p class="font-semibold text-slate-900">{{ card.subscriber_count }}</p>
+              </div>
+              <div class="rounded-lg bg-slate-50 border border-slate-200 p-2">
+                <p class="text-slate-500">Removable</p>
+                <p class="font-semibold text-slate-900">{{ card.removable_count }}</p>
+              </div>
+            </div>
+
+            <div class="mt-3 space-y-2">
+              {% if card.connected %}
+                <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
+                  <button class="btn-platform btn-platform-primary">Sync now</button>
+                </form>
+                <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="btn-platform btn-platform-danger">Remove inactive</a>
+              {% else %}
+                <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">{{ card.connect_label }}</a>
+              {% endif %}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
     </div>
-  </section>
-</div>
+  </div>
+</section>
 {% endblock %}
