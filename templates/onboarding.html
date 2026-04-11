@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="max-w-5xl mx-auto">
+  <div class="rounded-[2rem] border border-slate-200 bg-white/90 backdrop-blur shadow-2xl shadow-slate-900/10 overflow-hidden reveal">
+    <div class="grid lg:grid-cols-[1.2fr_0.8fr]">
+      <div class="p-6 sm:p-8 lg:p-10 space-y-6">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold">
+          Quick start
+        </div>
+        <div>
+          <h1 class="text-4xl sm:text-5xl font-black tracking-tight text-slate-950 leading-tight">Let’s see how many of your subscribers actually read your emails.</h1>
+          <p class="mt-4 text-lg text-slate-600 max-w-2xl">Takes 30 seconds. No technical setup.</p>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <a href="{{ url_for('connect_mailchimp') }}" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 hover-lift transition-transform">
+            <p class="text-sm font-semibold text-slate-500">1. Connect your platform</p>
+            <p class="mt-2 text-2xl font-black text-slate-950">Sync Mailchimp</p>
+            <p class="mt-2 text-sm text-slate-600">Pull your audience in and see engagement quality instantly.</p>
+          </a>
+
+          <a href="{{ url_for('connect_convertkit') }}" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 hover-lift transition-transform">
+            <p class="text-sm font-semibold text-slate-500">1. Connect your platform</p>
+            <p class="mt-2 text-2xl font-black text-slate-950">Sync ConvertKit</p>
+            <p class="mt-2 text-sm text-slate-600">Get a fast classification without extra setup.</p>
+          </a>
+        </div>
+
+        <div class="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p class="text-sm font-semibold text-slate-500">2. OR upload CSV</p>
+            <p class="mt-1 text-lg font-bold text-slate-900">Upload your list</p>
+          </div>
+          <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary">Upload your list</a>
+        </div>
+      </div>
+
+      <div class="p-6 sm:p-8 lg:p-10 bg-slate-950 text-white flex flex-col justify-between gap-6">
+        <div>
+          <p class="text-xs uppercase tracking-[0.3em] text-lime-200/80">Your audience snapshot</p>
+          <div class="mt-5 grid grid-cols-3 gap-3">
+            <div class="rounded-2xl bg-white/10 p-4">
+              <p class="text-xs text-slate-300">Total</p>
+              <p class="mt-2 text-3xl font-black">{{ total }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-4">
+              <p class="text-xs text-slate-300">Active</p>
+              <p class="mt-2 text-3xl font-black text-lime-200">{{ active_count }}</p>
+            </div>
+            <div class="rounded-2xl bg-white/10 p-4">
+              <p class="text-xs text-slate-300">Inactive</p>
+              <p class="mt-2 text-3xl font-black text-rose-200">{{ inactive_count }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-3xl bg-white/10 border border-white/10 p-5">
+          <p class="text-sm text-slate-300">Next step</p>
+          <p class="mt-1 text-2xl font-black">After import, we classify your list and send you to results automatically.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

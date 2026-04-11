@@ -91,7 +91,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
-            is_paid INTEGER NOT NULL DEFAULT 0
+            is_paid INTEGER NOT NULL DEFAULT 0,
+            can_clean INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS subscribers (
@@ -158,6 +159,13 @@ def init_db():
             open_rate REAL NOT NULL DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS access_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            timestamp TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
         """
     )
     ensure_db_columns(db)
@@ -168,6 +176,8 @@ def ensure_db_columns(db):
     user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
     if "is_paid" not in user_columns:
         db.execute("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0")
+    if "can_clean" not in user_columns:
+        db.execute("ALTER TABLE users ADD COLUMN can_clean INTEGER NOT NULL DEFAULT 0")
 
     subscriber_columns = {row["name"] for row in db.execute("PRAGMA table_info(subscribers)").fetchall()}
     required_columns = {
@@ -249,6 +259,14 @@ def is_paid_user(user_id):
     db = get_db()
     row = db.execute("SELECT is_paid FROM users WHERE id = ?", (user_id,)).fetchone()
     return bool(row and int(row["is_paid"] or 0))
+
+
+def can_clean_user(user_id):
+    db = get_db()
+    row = db.execute("SELECT is_paid, can_clean FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        return False
+    return bool(int(row["is_paid"] or 0) or int(row["can_clean"] or 0))
 
 
 def get_integrations(user_id):
@@ -919,6 +937,24 @@ def current_user():
     return db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
 
 
+def save_access_request(user_id):
+    db = get_db()
+    db.execute(
+        "INSERT INTO access_requests (user_id, timestamp) VALUES (?, ?)",
+        (user_id, now_iso()),
+    )
+    db.commit()
+
+
+def count_access_requests(user_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT COUNT(*) AS count FROM access_requests WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return row["count"] or 0
+
+
 def is_valid_email(email):
     return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email or ""))
 
@@ -1055,7 +1091,7 @@ def landing():
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
     if session.get("user_id"):
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("onboarding"))
 
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
@@ -1079,8 +1115,10 @@ def signup():
                 (email, password_hash),
             )
             db.commit()
-            flash("Account created. Please log in.", "success")
-            return redirect(url_for("login"))
+            flash("Account created. Let’s get started.", "success")
+            user = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+            session["user_id"] = user["id"]
+            return redirect(url_for("onboarding"))
         except sqlite3.IntegrityError:
             flash("Email already registered.", "error")
 
@@ -1090,7 +1128,7 @@ def signup():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("user_id"):
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("onboarding"))
 
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
@@ -1108,7 +1146,7 @@ def login():
 
         session["user_id"] = user["id"]
         flash("Logged in successfully.", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("onboarding"))
 
     return render_template("login.html")
 
@@ -1117,6 +1155,31 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("landing"))
+
+
+@app.route("/onboarding")
+@login_required
+def onboarding():
+    user = current_user()
+    db = get_db()
+    stats = db.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active,
+            SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive
+        FROM subscribers
+        WHERE user_id = ?
+        """,
+        (user["id"],),
+    ).fetchone()
+    return render_template(
+        "onboarding.html",
+        user=user,
+        total=stats["total"] or 0,
+        active_count=stats["active"] or 0,
+        inactive_count=stats["inactive"] or 0,
+    )
 
 
 @app.route("/dashboard")
@@ -1160,6 +1223,8 @@ def dashboard():
     smart_suggestion = build_smart_suggestion(total, inactive_total, open_rate)
     clean_history = get_recent_clean_history(user["id"], limit=10)
     is_paid = is_paid_user(user["id"])
+    can_clean = can_clean_user(user["id"])
+    access_request_count = count_access_requests(user["id"])
 
     first_connected_platform = None
     for card in platform_cards:
@@ -1185,6 +1250,8 @@ def dashboard():
         smart_suggestion=smart_suggestion,
         clean_history=clean_history,
         is_paid=is_paid,
+        can_clean=can_clean,
+        access_request_count=access_request_count,
         has_data=total > 0,
         before_total=total,
         before_open_rate=round(open_rate, 2),
@@ -1211,9 +1278,9 @@ def settings():
 @login_required
 def upgrade_account():
     db = get_db()
-    db.execute("UPDATE users SET is_paid = 1 WHERE id = ?", (session["user_id"],))
+    db.execute("UPDATE users SET is_paid = 1, can_clean = 1 WHERE id = ?", (session["user_id"],))
     db.commit()
-    flash("Plan upgraded. Paid features are now unlocked.", "success")
+    flash("Cleaning access enabled.", "success")
     return redirect(url_for("dashboard"))
 
 
@@ -1258,9 +1325,9 @@ def update_auto_clean_settings_route():
     if frequency not in {"every_3_days", "weekly", "monthly"}:
         frequency = "weekly"
 
-    if enabled and not is_paid_user(user["id"]):
+    if enabled and not can_clean_user(user["id"]):
         upsert_auto_clean_settings(user["id"], enabled=0, frequency=frequency, pending_review=0)
-        flash("Unlock cleaning for ₹499/month to enable Auto-Clean.", "error")
+        flash("Request cleaning access to enable Auto-Clean.", "error")
         return redirect(url_for("dashboard"))
 
     if enabled and not has_connected_platform(user["id"]):
@@ -1275,7 +1342,6 @@ def update_auto_clean_settings_route():
 
 @app.route("/connect/mailchimp")
 @login_required
-@paid_required
 def connect_mailchimp():
     user = current_user()
     code = request.args.get("code")
@@ -1327,7 +1393,6 @@ def connect_mailchimp():
 
 @app.route("/select_mailchimp_audience", methods=["GET", "POST"])
 @login_required
-@paid_required
 def select_mailchimp_audience():
     user = current_user()
     access_token = session.get("mailchimp_token")
@@ -1380,7 +1445,6 @@ def select_mailchimp_audience():
 
 @app.route("/connect/convertkit", methods=["GET", "POST"])
 @login_required
-@paid_required
 def connect_convertkit():
     code = request.args.get("code")
     state = request.args.get("state")
@@ -1426,7 +1490,6 @@ def connect_convertkit():
 
 @app.route("/select_convertkit_form", methods=["GET", "POST"])
 @login_required
-@paid_required
 def select_convertkit_form():
     user = current_user()
     access_token = session.get("convertkit_token")
@@ -1486,7 +1549,6 @@ def select_convertkit_form():
 
 @app.route("/connect/beehiiv", methods=["GET", "POST"])
 @login_required
-@paid_required
 def connect_beehiiv():
     code = request.args.get("code")
     state = request.args.get("state")
@@ -1532,7 +1594,6 @@ def connect_beehiiv():
 
 @app.route("/select_beehiiv_publication", methods=["GET", "POST"])
 @login_required
-@paid_required
 def select_beehiiv_publication():
     user = current_user()
     access_token = session.get("beehiiv_token")
@@ -1593,7 +1654,6 @@ def select_beehiiv_publication():
 
 @app.route("/sync/all", methods=["POST"])
 @login_required
-@paid_required
 def sync_all_integrations():
     totals = sync_all_platforms(session["user_id"])
     if not totals:
@@ -1606,7 +1666,6 @@ def sync_all_integrations():
 
 @app.route("/integrations/<platform>/sync", methods=["POST"])
 @login_required
-@paid_required
 def sync_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1620,10 +1679,11 @@ def sync_integration(platform):
 
 @app.route("/integrations/<platform>/preview-delete")
 @login_required
-@paid_required
 def preview_platform_delete(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
+    if not can_clean_user(session["user_id"]):
+        return redirect(url_for("clean_list"))
     count = get_platform_cleanup_count(session["user_id"], platform)
     return render_template(
         "preview_cleanup.html",
@@ -1635,10 +1695,11 @@ def preview_platform_delete(platform):
 
 @app.route("/integrations/<platform>/delete", methods=["POST"])
 @login_required
-@paid_required
 def delete_platform_subscribers_route(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
+    if not can_clean_user(session["user_id"]):
+        return redirect(url_for("clean_list"))
     try:
         record_clean_history(session["user_id"], "before")
         removed = cleanup_platform_subscribers(session["user_id"], platform)
@@ -1658,7 +1719,6 @@ def delete_platform_subscribers_route(platform):
 
 @app.route("/integrations/<platform>/disconnect")
 @login_required
-@paid_required
 def preview_disconnect_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1689,7 +1749,6 @@ def preview_disconnect_integration(platform):
 
 @app.route("/integrations/<platform>/disconnect", methods=["POST"])
 @login_required
-@paid_required
 def disconnect_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1710,8 +1769,9 @@ def disconnect_integration(platform):
 
 @app.route("/review-clean/<int:pending_id>")
 @login_required
-@paid_required
 def review_clean(pending_id):
+    if not can_clean_user(session["user_id"]):
+        return redirect(url_for("clean_list"))
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
         abort(404)
@@ -1726,8 +1786,9 @@ def review_clean(pending_id):
 
 @app.route("/review-clean/<int:pending_id>/approve", methods=["POST"])
 @login_required
-@paid_required
 def approve_clean(pending_id):
+    if not can_clean_user(session["user_id"]):
+        return redirect(url_for("clean_list"))
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
         abort(404)
@@ -1766,8 +1827,9 @@ def approve_clean(pending_id):
 
 @app.route("/review-clean/<int:pending_id>/reject", methods=["POST"])
 @login_required
-@paid_required
 def reject_clean(pending_id):
+    if not can_clean_user(session["user_id"]):
+        return redirect(url_for("clean_list"))
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
         abort(404)
@@ -1859,8 +1921,9 @@ def upload_csv():
             inserted += 1
 
         db.commit()
+        apply_engagement_rules(session["user_id"])
         flash(f"Upload complete. Added {inserted} subscribers.", "success")
-        return redirect(url_for("subscribers"))
+        return redirect(url_for("dashboard"))
 
     return render_template("upload.html")
 
@@ -1931,13 +1994,40 @@ def compose_email():
     )
 
 
-@app.route("/clean-list", methods=["POST"])
+@app.route("/clean-list", methods=["GET", "POST"])
 @login_required
-@paid_required
 def clean_list():
-    apply_engagement_rules(session["user_id"])
-    flash("Engagement rules applied. Subscriber statuses updated.", "success")
-    return redirect(url_for("dashboard"))
+    user = current_user()
+    db = get_db()
+    inactive_count = db.execute(
+        "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'inactive'",
+        (user["id"],),
+    ).fetchone()["count"] or 0
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action == "request_access":
+            save_access_request(user["id"])
+            return render_template(
+                "clean_list.html",
+                inactive_count=inactive_count,
+                can_clean=False,
+                access_request_count=count_access_requests(user["id"]),
+                request_sent=True,
+            )
+        if can_clean_user(user["id"]):
+            apply_engagement_rules(session["user_id"])
+            flash("Engagement rules applied. Subscriber statuses updated.", "success")
+            return redirect(url_for("dashboard"))
+        flash("Request access to unlock cleaning.", "error")
+        return redirect(url_for("clean_list"))
+
+    return render_template(
+        "clean_list.html",
+        inactive_count=inactive_count,
+        can_clean=can_clean_user(user["id"]),
+        access_request_count=count_access_requests(user["id"]),
+    )
 
 
 @app.route("/warn-inactive", methods=["POST"])

@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="max-w-3xl mx-auto reveal">
+  <div class="rounded-[2rem] border border-slate-200 bg-white/90 backdrop-blur shadow-2xl shadow-slate-900/10 p-6 sm:p-8 space-y-6">
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm font-semibold">
+      Soft paywall
+    </div>
+
+    <div>
+      <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-950">We found {{ inactive_count }} inactive subscribers.</h1>
+      <p class="mt-3 text-lg text-slate-600">Cleaning your list can significantly improve your open rates.</p>
+    </div>
+
+    {% if request_sent %}
+    <div class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+      <p class="text-sm font-semibold text-emerald-700">You're on the list</p>
+      <p class="mt-1 text-slate-800">We'll enable cleaning for you soon.</p>
+    </div>
+    {% endif %}
+
+    {% if can_clean %}
+    <div class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+      <p class="text-sm font-semibold text-emerald-700">Access granted</p>
+      <p class="mt-1 text-slate-800">You can clean now without requesting access.</p>
+      <form method="POST" class="mt-4">
+        <input type="hidden" name="action" value="clean" />
+        <button type="submit" class="btn-action btn-action-primary">Clean now</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+      <p class="text-sm font-semibold text-slate-500">Request access</p>
+      <p class="mt-1 text-slate-800">You're on the waitlist. We'll enable cleaning for you soon.</p>
+      {% if access_request_count > 0 %}
+      <p class="mt-2 text-sm text-slate-500">You have already requested access {{ access_request_count }} time{{ 's' if access_request_count != 1 else '' }}.</p>
+      {% endif %}
+    </div>
+    <div class="flex flex-col sm:flex-row gap-3">
+      <form method="POST" class="flex-1">
+        <input type="hidden" name="action" value="request_access" />
+        <button type="submit" class="btn-action btn-action-primary w-full">Request Access</button>
+      </form>
+      <a href="{{ url_for('dashboard') }}" class="btn-action bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 w-full sm:w-auto text-center">Maybe later</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
