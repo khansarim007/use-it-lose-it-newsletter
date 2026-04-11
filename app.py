@@ -15,6 +15,7 @@ from flask import (
     abort,
     flash,
     g,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -120,6 +121,27 @@ def init_db():
             api_key TEXT,
             extra_data TEXT,
             created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS auto_clean_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            frequency TEXT NOT NULL DEFAULT 'weekly',
+            last_run_at TEXT,
+            pending_review INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS pending_clean (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            total_subscribers INTEGER NOT NULL DEFAULT 0,
+            inactive_count INTEGER NOT NULL DEFAULT 0,
+            data_snapshot TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         """
@@ -250,6 +272,305 @@ def get_integration(user_id, platform):
     item = dict(row)
     item["extra_data"] = safe_json_loads(item.get("extra_data"), {})
     return item
+
+
+def has_connected_platform(user_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT COUNT(*) AS count FROM integrations WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    return (row["count"] or 0) > 0
+
+
+def get_auto_clean_settings(user_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM auto_clean_settings WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+    if not row:
+        return {
+            "user_id": user_id,
+            "enabled": 0,
+            "frequency": "weekly",
+            "last_run_at": None,
+            "pending_review": 0,
+        }
+    item = dict(row)
+    item["enabled"] = int(item.get("enabled") or 0)
+    item["pending_review"] = int(item.get("pending_review") or 0)
+    return item
+
+
+def upsert_auto_clean_settings(user_id, enabled, frequency, last_run_at=None, pending_review=None):
+    db = get_db()
+    current = get_auto_clean_settings(user_id)
+    if frequency not in {"daily", "weekly", "monthly"}:
+        frequency = "weekly"
+
+    final_last_run = last_run_at if last_run_at is not None else current.get("last_run_at")
+    final_pending_review = int(pending_review) if pending_review is not None else int(current.get("pending_review") or 0)
+
+    existing = db.execute(
+        "SELECT id FROM auto_clean_settings WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+    payload = (
+        int(bool(enabled)),
+        frequency,
+        final_last_run,
+        final_pending_review,
+        user_id,
+    )
+
+    if existing:
+        db.execute(
+            """
+            UPDATE auto_clean_settings
+            SET enabled = ?, frequency = ?, last_run_at = ?, pending_review = ?
+            WHERE user_id = ?
+            """,
+            payload,
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO auto_clean_settings (enabled, frequency, last_run_at, pending_review, user_id)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            payload,
+        )
+    db.commit()
+
+
+def get_latest_pending_clean(user_id):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT *
+        FROM pending_clean
+        WHERE user_id = ? AND status = 'pending'
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (user_id,),
+    ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["data_snapshot"] = safe_json_loads(item.get("data_snapshot"), [])
+    return item
+
+
+def get_pending_clean(user_id, pending_id):
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM pending_clean WHERE id = ? AND user_id = ?",
+        (pending_id, user_id),
+    ).fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    item["data_snapshot"] = safe_json_loads(item.get("data_snapshot"), [])
+    return item
+
+
+def create_pending_clean(user_id, total_subscribers, inactive_users):
+    if not inactive_users:
+        return None
+
+    db = get_db()
+    existing = get_latest_pending_clean(user_id)
+    if existing:
+        return existing
+
+    created_at = now_iso()
+    db.execute(
+        """
+        INSERT INTO pending_clean (
+            user_id, total_subscribers, inactive_count, data_snapshot, created_at, status
+        ) VALUES (?, ?, ?, ?, ?, 'pending')
+        """,
+        (
+            user_id,
+            int(total_subscribers or 0),
+            len(inactive_users),
+            safe_json_dumps(inactive_users),
+            created_at,
+        ),
+    )
+    db.commit()
+    return get_latest_pending_clean(user_id)
+
+
+def send_optional_auto_clean_notification(user_email, inactive_count):
+    if os.environ.get("AUTO_CLEAN_NOTIFY_ENABLED", "0") != "1":
+        return
+    print(f"[AUTO-CLEAN REPORT] To: {user_email} | Subject: Your CullList report is ready | Body: You have {inactive_count} inactive subscribers ready to clean.")
+
+
+def is_due_for_auto_clean(last_run_at, frequency):
+    if not last_run_at:
+        return True
+    last = parse_datetime(last_run_at)
+    if not last:
+        return True
+
+    now = datetime.utcnow()
+    if frequency == "daily":
+        return now - last >= timedelta(days=1)
+    if frequency == "weekly":
+        return now - last >= timedelta(days=7)
+    if frequency == "monthly":
+        return now - last >= timedelta(days=30)
+    return now - last >= timedelta(days=7)
+
+
+def build_inactive_snapshot(user_id):
+    db = get_db()
+    integrations = get_integrations(user_id)
+    connected_platforms = list(integrations.keys())
+    if not connected_platforms:
+        return 0, []
+
+    total_subscribers = db.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM subscribers
+        WHERE user_id = ? AND source_platform IN ({})
+        """.format(",".join(["?" for _ in connected_platforms])),
+        (user_id, *connected_platforms),
+    ).fetchone()["count"] or 0
+
+    snapshot = []
+    for platform in connected_platforms:
+        rows = db.execute(
+            """
+            SELECT email, source_ref, source_data
+            FROM subscribers
+            WHERE user_id = ? AND source_platform = ? AND status = 'inactive'
+            ORDER BY email ASC
+            """,
+            (user_id, platform),
+        ).fetchall()
+        for row in rows:
+            snapshot.append(
+                {
+                    "platform": platform,
+                    "email": row["email"],
+                    "source_ref": row["source_ref"],
+                    "source_data": safe_json_loads(row["source_data"], {}),
+                }
+            )
+
+    return total_subscribers, snapshot
+
+
+def run_auto_clean_for_user(user_id):
+    settings = get_auto_clean_settings(user_id)
+    if not int(settings.get("enabled") or 0):
+        return None
+
+    if not has_connected_platform(user_id):
+        upsert_auto_clean_settings(user_id, enabled=0, frequency=settings.get("frequency", "weekly"), pending_review=0)
+        return None
+
+    if not is_due_for_auto_clean(settings.get("last_run_at"), settings.get("frequency", "weekly")):
+        return None
+
+    integrations = get_integrations(user_id)
+    for platform in integrations:
+        try:
+            sync_platform(user_id, platform)
+        except Exception:
+            continue
+
+    total, inactive_snapshot = build_inactive_snapshot(user_id)
+    existing_pending = get_latest_pending_clean(user_id)
+    pending = existing_pending or create_pending_clean(user_id, total, inactive_snapshot)
+    if pending and not existing_pending:
+        db = get_db()
+        user = db.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone()
+        if user:
+            send_optional_auto_clean_notification(user["email"], pending.get("inactive_count", 0))
+    upsert_auto_clean_settings(
+        user_id,
+        enabled=1,
+        frequency=settings.get("frequency", "weekly"),
+        last_run_at=now_iso(),
+        pending_review=1 if pending else 0,
+    )
+    return pending
+
+
+def run_auto_clean_job():
+    db = get_db()
+    rows = db.execute(
+        "SELECT user_id FROM auto_clean_settings WHERE enabled = 1",
+    ).fetchall()
+    created = 0
+    processed = 0
+    for row in rows:
+        processed += 1
+        pending = run_auto_clean_for_user(row["user_id"])
+        if pending:
+            created += 1
+    return {"processed": processed, "created": created}
+
+
+def delete_snapshot_item(user_id, item):
+    platform = item.get("platform")
+    email = (item.get("email") or "").strip().lower()
+    source_ref = item.get("source_ref")
+    source_data = item.get("source_data") or {}
+
+    integration = get_integration(user_id, platform)
+    if not integration:
+        return False
+
+    if platform == "mailchimp":
+        extra = integration.get("extra_data") or {}
+        delete_mailchimp_subscriber(
+            integration.get("access_token"),
+            extra.get("server_prefix"),
+            extra.get("list_id") or os.environ.get("MAILCHIMP_LIST_ID"),
+            email,
+        )
+    elif platform == "convertkit":
+        subscriber_id = source_data.get("convertkit_id") or source_ref
+        if integration.get("access_token"):
+            delete_convertkit_subscriber_with_token(integration.get("access_token"), subscriber_id)
+        else:
+            delete_convertkit_subscriber(integration.get("api_key"), subscriber_id)
+    elif platform == "beehiiv":
+        publication_id = integration.get("extra_data", {}).get("publication_id") or os.environ.get("BEEHIIV_PUBLICATION_ID")
+        token = integration.get("access_token") or integration.get("api_key")
+        delete_beehiiv_subscriber(token, publication_id, source_data.get("beehiiv_id") or source_ref)
+    else:
+        return False
+
+    db = get_db()
+    db.execute(
+        """
+        UPDATE subscribers
+        SET status = 'removed'
+        WHERE user_id = ? AND source_platform = ? AND source_ref = ?
+        """,
+        (user_id, platform, source_ref),
+    )
+    db.commit()
+    return True
+
+
+def update_pending_status(pending_id, user_id, status):
+    db = get_db()
+    db.execute(
+        "UPDATE pending_clean SET status = ? WHERE id = ? AND user_id = ?",
+        (status, pending_id, user_id),
+    )
+    db.commit()
 
 
 def build_platform_cards(user_id):
@@ -651,6 +972,9 @@ def dashboard():
     open_rate = (stats["opened"] / total * 100) if total else 0
     click_rate = (stats["clicked"] / total * 100) if total else 0
     platform_cards = build_platform_cards(user["id"])
+    auto_clean_settings = get_auto_clean_settings(user["id"])
+    pending_clean = get_latest_pending_clean(user["id"])
+    integrations_connected = has_connected_platform(user["id"])
 
     return render_template(
         "dashboard.html",
@@ -659,7 +983,29 @@ def dashboard():
         open_rate=round(open_rate, 2),
         click_rate=round(click_rate, 2),
         platform_cards=platform_cards,
+        auto_clean_settings=auto_clean_settings,
+        pending_clean=pending_clean,
+        integrations_connected=integrations_connected,
     )
+
+
+@app.route("/auto-clean/settings", methods=["POST"])
+@login_required
+def update_auto_clean_settings_route():
+    user = current_user()
+    enabled = request.form.get("enabled") == "on"
+    frequency = (request.form.get("frequency") or "weekly").strip().lower()
+    if frequency not in {"daily", "weekly", "monthly"}:
+        frequency = "weekly"
+
+    if enabled and not has_connected_platform(user["id"]):
+        upsert_auto_clean_settings(user["id"], enabled=0, frequency=frequency, pending_review=0)
+        flash("Connect your platform to enable Auto-Clean.", "error")
+        return redirect(url_for("dashboard"))
+
+    upsert_auto_clean_settings(user["id"], enabled=1 if enabled else 0, frequency=frequency)
+    flash("Auto-Clean settings saved.", "success")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/connect/mailchimp")
@@ -1074,6 +1420,88 @@ def disconnect_integration(platform):
         flash(f"Failed to disconnect {PLATFORM_CONFIG[platform]['label']}: {error}", "error")
 
     return redirect(url_for("dashboard"))
+
+
+@app.route("/review-clean/<int:pending_id>")
+@login_required
+def review_clean(pending_id):
+    pending = get_pending_clean(session["user_id"], pending_id)
+    if not pending:
+        abort(404)
+
+    sample_emails = [item.get("email") for item in pending.get("data_snapshot", [])[:10] if item.get("email")]
+    return render_template(
+        "review_clean.html",
+        pending=pending,
+        sample_emails=sample_emails,
+    )
+
+
+@app.route("/review-clean/<int:pending_id>/approve", methods=["POST"])
+@login_required
+def approve_clean(pending_id):
+    pending = get_pending_clean(session["user_id"], pending_id)
+    if not pending:
+        abort(404)
+    if pending.get("status") != "pending":
+        flash("This cleanup request has already been processed.", "error")
+        return redirect(url_for("dashboard"))
+
+    removed = 0
+    failed = 0
+    for item in pending.get("data_snapshot", []):
+        try:
+            if delete_snapshot_item(session["user_id"], item):
+                removed += 1
+            else:
+                failed += 1
+        except Exception:
+            failed += 1
+
+    update_pending_status(pending_id, session["user_id"], "approved")
+    settings = get_auto_clean_settings(session["user_id"])
+    upsert_auto_clean_settings(
+        session["user_id"],
+        enabled=int(settings.get("enabled") or 0),
+        frequency=settings.get("frequency", "weekly"),
+        pending_review=0,
+    )
+
+    if failed:
+        flash(f"{removed} inactive subscribers removed successfully. {failed} could not be removed.", "success")
+    else:
+        flash(f"{removed} inactive subscribers removed successfully.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/review-clean/<int:pending_id>/reject", methods=["POST"])
+@login_required
+def reject_clean(pending_id):
+    pending = get_pending_clean(session["user_id"], pending_id)
+    if not pending:
+        abort(404)
+
+    update_pending_status(pending_id, session["user_id"], "rejected")
+    settings = get_auto_clean_settings(session["user_id"])
+    upsert_auto_clean_settings(
+        session["user_id"],
+        enabled=int(settings.get("enabled") or 0),
+        frequency=settings.get("frequency", "weekly"),
+        pending_review=0,
+    )
+    flash("Auto-clean request canceled.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/jobs/auto-clean", methods=["POST"])
+def auto_clean_job_route():
+    token = request.headers.get("X-Job-Token") or request.args.get("token")
+    expected = os.environ.get("AUTO_CLEAN_JOB_TOKEN")
+    if expected and token != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    result = run_auto_clean_job()
+    return jsonify({"status": "ok", **result})
 
 
 @app.route("/subscribers")

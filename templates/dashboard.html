@@ -1,6 +1,18 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="space-y-8">
+  {% if pending_clean %}
+  <section class="bg-amber-50 border border-amber-200 rounded-3xl p-5 md:p-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h3 class="text-xl font-black text-amber-900">Auto-Clean report ready</h3>
+        <p class="mt-1 text-amber-800">You have {{ pending_clean.inactive_count }} inactive subscribers ready to be removed.</p>
+      </div>
+      <a href="{{ url_for('review_clean', pending_id=pending_clean.id) }}" class="btn-action btn-action-primary">Review &amp; Clean</a>
+    </div>
+  </section>
+  {% endif %}
+
   <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-8 md:p-10">
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
       <div>
@@ -19,6 +31,44 @@
         </form>
       </div>
     </div>
+  </section>
+
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
+      <div>
+        <h2 class="text-2xl font-black tracking-tight text-slate-950">Auto-Clean Settings</h2>
+        <p class="mt-1 text-slate-600">Detect inactive subscribers on a schedule and always require your approval before removal.</p>
+      </div>
+      {% if not integrations_connected %}
+      <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">Connect a platform first</span>
+      {% endif %}
+    </div>
+
+    {% if not integrations_connected %}
+      <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800 text-sm">
+        Connect your platform to enable Auto-Clean.
+      </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('update_auto_clean_settings_route') }}" class="grid md:grid-cols-3 gap-4 items-end mt-4">
+      <label class="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 bg-slate-50 md:col-span-1 {% if not integrations_connected %}opacity-60{% endif %}">
+        <input type="checkbox" name="enabled" {% if auto_clean_settings.enabled %}checked{% endif %} {% if not integrations_connected %}disabled{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500">
+        <span class="text-sm font-medium text-slate-800">Enable Auto-Clean</span>
+      </label>
+
+      <div class="md:col-span-1">
+        <label class="block text-sm font-medium text-slate-700 mb-2">Frequency</label>
+        <select name="frequency" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-400" {% if not integrations_connected %}disabled{% endif %}>
+          <option value="daily" {% if auto_clean_settings.frequency == 'daily' %}selected{% endif %}>Daily</option>
+          <option value="weekly" {% if auto_clean_settings.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+          <option value="monthly" {% if auto_clean_settings.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+        </select>
+      </div>
+
+      <div class="md:col-span-1">
+        <button type="submit" class="btn-action btn-action-primary w-full" {% if not integrations_connected %}disabled{% endif %}>Save settings</button>
+      </div>
+    </form>
   </section>
 
   <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
