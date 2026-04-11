@@ -216,3 +216,114 @@ html {
   border-color: #0f766e;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
 }
+
+.landing-wrap {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: linear-gradient(160deg, #030617 0%, #020617 48%, #071027 100%);
+}
+
+.landing-grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(148, 163, 184, 0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 0.65), transparent 78%);
+  pointer-events: none;
+}
+
+.landing-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(58px);
+  pointer-events: none;
+}
+
+.landing-glow-left {
+  top: 16%;
+  left: -8%;
+  width: 340px;
+  height: 340px;
+  background: rgba(59, 130, 246, 0.22);
+}
+
+.landing-glow-right {
+  bottom: 8%;
+  right: -6%;
+  width: 380px;
+  height: 380px;
+  background: rgba(132, 204, 22, 0.2);
+}
+
+.landing-input {
+  flex: 1;
+  min-height: 48px;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.55);
+  color: #f8fafc;
+  padding: 0.75rem 1rem;
+  outline: none;
+}
+
+.landing-input::placeholder {
+  color: #94a3b8;
+}
+
+.landing-input:focus {
+  border-color: rgba(163, 230, 53, 0.75);
+  box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.15);
+}
+
+.landing-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 0.8rem;
+  padding: 0.75rem 1.35rem;
+  font-weight: 700;
+  background: #bef264;
+  color: #0f172a;
+  transition: transform 140ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.landing-cta:hover {
+  background: #d9f99d;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(163, 230, 53, 0.28);
+}
+
+.landing-logo {
+  border: 1px solid rgba(71, 85, 105, 0.45);
+  border-radius: 0.8rem;
+  background: rgba(15, 23, 42, 0.36);
+  text-align: center;
+  padding: 0.6rem 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.landing-panel {
+  border-radius: 1.1rem;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.55), rgba(2, 6, 23, 0.86));
+  padding: 1.5rem;
+}
+
+.landing-chip {
+  border: 1px solid rgba(71, 85, 105, 0.7);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(15, 23, 42, 0.5);
+  color: #cbd5e1;
+  font-size: 0.9rem;
+}
+
+.landing-stat {
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 0.8rem;
+  background: rgba(15, 23, 42, 0.45);
+  padding: 0.75rem;
+}
