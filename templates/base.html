@@ -15,9 +15,7 @@
         {% if session.get('user_id') %}
           <div class="flex flex-wrap gap-2 items-center text-sm sm:justify-end">
             <a href="{{ url_for('dashboard') }}" class="px-3 py-2 rounded-full hover:bg-slate-100 transition-colors">Dashboard</a>
-            <a href="{{ url_for('upload_csv') }}" class="px-3 py-2 rounded-full hover:bg-slate-100 transition-colors">Upload CSV</a>
-            <a href="{{ url_for('subscribers') }}" class="px-3 py-2 rounded-full hover:bg-slate-100 transition-colors">Subscribers</a>
-            <a href="{{ url_for('compose_email') }}" class="px-3 py-2 rounded-full hover:bg-slate-100 transition-colors">Compose</a>
+            <a href="{{ url_for('settings') }}" class="px-3 py-2 rounded-full hover:bg-slate-100 transition-colors">Settings</a>
             <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-full bg-slate-950 text-white font-semibold shadow-sm hover:bg-slate-800 transition-colors">Logout</a>
           </div>
         {% else %}

@@ -988,26 +988,60 @@ def dashboard():
     ).fetchone()
 
     total = stats["total"] or 0
+    active_count = stats["active"] or 0
+    inactive_count = stats["inactive"] or 0
+    removed_count = stats["removed"] or 0
+    inactive_total = inactive_count + removed_count
     open_rate = (stats["opened"] / total * 100) if total else 0
     click_rate = (stats["clicked"] / total * 100) if total else 0
+    engagement_percent = (active_count / total * 100) if total else 0
+    never_read_percent = (inactive_total / total * 100) if total else 0
     platform_cards = build_platform_cards(user["id"])
     auto_clean_settings = get_auto_clean_settings(user["id"])
     pending_clean = get_latest_pending_clean(user["id"])
     latest_clean_report = get_latest_clean_report(user["id"])
     integrations_connected = has_connected_platform(user["id"])
 
+    first_connected_platform = None
+    for card in platform_cards:
+        if card["connected"]:
+            first_connected_platform = card["platform"]
+            break
+
+    cleaned_count = request.args.get("cleaned", type=int)
+    engaged_readers = request.args.get("engaged", type=int)
+
     return render_template(
         "dashboard.html",
         user=user,
         stats=stats,
+        total=total,
+        active_count=active_count,
+        inactive_count=inactive_total,
+        engagement_percent=round(engagement_percent, 2),
+        never_read_percent=round(never_read_percent, 2),
         open_rate=round(open_rate, 2),
         click_rate=round(click_rate, 2),
+        has_data=total > 0,
+        before_total=total,
+        before_open_rate=round(open_rate, 2),
+        after_total=active_count,
+        after_open_rate=round((stats["opened"] / active_count * 100), 2) if active_count else 0,
+        first_connected_platform=first_connected_platform,
+        cleaned_count=cleaned_count,
+        engaged_readers=engaged_readers,
         platform_cards=platform_cards,
         auto_clean_settings=auto_clean_settings,
         pending_clean=pending_clean,
         latest_clean_report=latest_clean_report,
         integrations_connected=integrations_connected,
     )
+
+
+@app.route("/settings")
+@login_required
+def settings():
+    return redirect(url_for("dashboard") + "#settings")
 
 
 @app.route("/auto-clean/settings", methods=["POST"])
@@ -1387,7 +1421,14 @@ def delete_platform_subscribers_route(platform):
         abort(404)
     try:
         removed = cleanup_platform_subscribers(session["user_id"], platform)
+        db = get_db()
+        row = db.execute(
+            "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'active'",
+            (session["user_id"],),
+        ).fetchone()
+        engaged = row["count"] or 0
         flash(f"Removed {removed} inactive subscribers from {PLATFORM_CONFIG[platform]['label']}.", "success")
+        return redirect(url_for("dashboard", cleaned=removed, engaged=engaged))
     except Exception as error:
         flash(f"Cleanup failed for {PLATFORM_CONFIG[platform]['label']}: {error}", "error")
     return redirect(url_for("dashboard"))
