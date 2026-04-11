@@ -90,7 +90,8 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL
+            password_hash TEXT NOT NULL,
+            is_paid INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS subscribers (
@@ -98,6 +99,8 @@ def init_db():
             user_id INTEGER NOT NULL,
             email TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'active',
+            engagement_score INTEGER NOT NULL DEFAULT 0,
+            engagement_bucket TEXT NOT NULL DEFAULT 'inactive',
             last_opened_at TEXT,
             last_clicked_at TEXT,
             created_at TEXT NOT NULL,
@@ -144,6 +147,17 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'pending',
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS clean_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            date TEXT NOT NULL,
+            phase TEXT NOT NULL,
+            total_subscribers INTEGER NOT NULL DEFAULT 0,
+            active_subscribers INTEGER NOT NULL DEFAULT 0,
+            open_rate REAL NOT NULL DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
         """
     )
     ensure_db_columns(db)
@@ -151,12 +165,18 @@ def init_db():
 
 
 def ensure_db_columns(db):
+    user_columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+    if "is_paid" not in user_columns:
+        db.execute("ALTER TABLE users ADD COLUMN is_paid INTEGER NOT NULL DEFAULT 0")
+
     subscriber_columns = {row["name"] for row in db.execute("PRAGMA table_info(subscribers)").fetchall()}
     required_columns = {
         "source_platform": "TEXT",
         "source_ref": "TEXT",
         "source_data": "TEXT",
         "last_synced_at": "TEXT",
+        "engagement_score": "INTEGER NOT NULL DEFAULT 0",
+        "engagement_bucket": "TEXT NOT NULL DEFAULT 'inactive'",
     }
     for column, column_type in required_columns.items():
         if column not in subscriber_columns:
@@ -180,27 +200,55 @@ def parse_datetime(value):
     return parse_iso_datetime(value)
 
 
-def classify_engagement(last_opened_at=None, last_clicked_at=None, source_data=None):
+def calculate_engagement_score(last_opened_at=None, last_clicked_at=None, source_data=None):
     data = source_data or {}
-    engagement_score = data.get("engagement_score")
-    if engagement_score is not None:
-        score = int(engagement_score)
-        if score >= 70:
-            return "active"
-        if score >= 40:
-            return "inactive"
-        return "removed"
+    raw_score = data.get("engagement_score")
+    if raw_score is not None:
+        try:
+            return max(0, min(100, int(raw_score)))
+        except (TypeError, ValueError):
+            pass
 
-    removed_cutoff = datetime.utcnow() - timedelta(days=14)
-    inactive_cutoff = datetime.utcnow() - timedelta(days=7)
-    last_clicked = parse_datetime(last_clicked_at)
+    score = 0
     last_opened = parse_datetime(last_opened_at)
+    last_clicked = parse_datetime(last_clicked_at)
+    now = datetime.utcnow()
 
-    if not last_clicked or last_clicked < removed_cutoff:
-        return "removed"
-    if not last_opened or last_opened < inactive_cutoff:
-        return "inactive"
-    return "active"
+    if last_opened:
+        days_since_open = max(0, (now - last_opened).days)
+        score += max(0, 40 - min(days_since_open, 40))
+
+    if last_clicked:
+        days_since_click = max(0, (now - last_clicked).days)
+        score += max(0, 45 - min(days_since_click, 45))
+        score += 15
+
+    return max(0, min(100, score))
+
+
+def bucket_from_score(score):
+    if score >= 90:
+        return "highly_engaged"
+    if score >= 50:
+        return "moderately_engaged"
+    return "inactive"
+
+
+def status_from_bucket(bucket):
+    if bucket in {"highly_engaged", "moderately_engaged"}:
+        return "active"
+    return "inactive"
+
+
+def classify_engagement(last_opened_at=None, last_clicked_at=None, source_data=None):
+    score = calculate_engagement_score(last_opened_at, last_clicked_at, source_data)
+    return status_from_bucket(bucket_from_score(score))
+
+
+def is_paid_user(user_id):
+    db = get_db()
+    row = db.execute("SELECT is_paid FROM users WHERE id = ?", (user_id,)).fetchone()
+    return bool(row and int(row["is_paid"] or 0))
 
 
 def get_integrations(user_id):
@@ -306,7 +354,9 @@ def get_auto_clean_settings(user_id):
 def upsert_auto_clean_settings(user_id, enabled, frequency, last_run_at=None, pending_review=None):
     db = get_db()
     current = get_auto_clean_settings(user_id)
-    if frequency not in {"daily", "weekly", "monthly"}:
+    if frequency == "daily":
+        frequency = "every_3_days"
+    if frequency not in {"every_3_days", "weekly", "monthly"}:
         frequency = "weekly"
 
     final_last_run = last_run_at if last_run_at is not None else current.get("last_run_at")
@@ -438,8 +488,8 @@ def is_due_for_auto_clean(last_run_at, frequency):
         return True
 
     now = datetime.utcnow()
-    if frequency == "daily":
-        return now - last >= timedelta(days=1)
+    if frequency in {"every_3_days", "daily"}:
+        return now - last >= timedelta(days=3)
     if frequency == "weekly":
         return now - last >= timedelta(days=7)
     if frequency == "monthly":
@@ -490,6 +540,9 @@ def build_inactive_snapshot(user_id):
 def run_auto_clean_for_user(user_id):
     settings = get_auto_clean_settings(user_id)
     if not int(settings.get("enabled") or 0):
+        return None
+    if not is_paid_user(user_id):
+        upsert_auto_clean_settings(user_id, enabled=0, frequency=settings.get("frequency", "weekly"), pending_review=0)
         return None
 
     if not has_connected_platform(user_id):
@@ -602,7 +655,7 @@ def build_platform_cards(user_id):
             """
             SELECT
                 COUNT(*) AS total,
-                SUM(CASE WHEN status IN ('inactive', 'removed') THEN 1 ELSE 0 END) AS removable
+                SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS removable
             FROM subscribers
             WHERE user_id = ? AND source_platform = ?
             """,
@@ -673,11 +726,11 @@ def upsert_platform_subscribers(user_id, platform, records, initial_sync=False):
 
         source_ref = record.get("source_ref") or email
         source_data = record.get("source_data") or {}
-        # For initial sync, mark new records as active; otherwise classify engagement
-        status = "active" if initial_sync else classify_engagement(record.get("last_open"), None, source_data)
         last_open = record.get("last_open")
-        engagement_score = source_data.get("engagement_score")
-        last_clicked = last_open if engagement_score is not None and int(engagement_score) >= 70 else None
+        score = 95 if initial_sync else calculate_engagement_score(last_open, None, source_data)
+        bucket = bucket_from_score(score)
+        status = status_from_bucket(bucket)
+        last_clicked = last_open if score >= 90 else None
 
         existing = db.execute(
             "SELECT id FROM subscribers WHERE user_id = ? AND source_platform = ? AND source_ref = ?",
@@ -686,6 +739,8 @@ def upsert_platform_subscribers(user_id, platform, records, initial_sync=False):
         payload = (
             email,
             status,
+            score,
+            bucket,
             last_open,
             last_clicked,
             safe_json_dumps(source_data),
@@ -699,7 +754,8 @@ def upsert_platform_subscribers(user_id, platform, records, initial_sync=False):
             db.execute(
                 """
                 UPDATE subscribers
-                SET email = ?, status = ?, last_opened_at = ?, last_clicked_at = ?,
+                SET email = ?, status = ?, engagement_score = ?, engagement_bucket = ?,
+                    last_opened_at = ?, last_clicked_at = ?,
                     source_data = ?, last_synced_at = ?
                 WHERE user_id = ? AND source_platform = ? AND source_ref = ?
                 """,
@@ -710,14 +766,17 @@ def upsert_platform_subscribers(user_id, platform, records, initial_sync=False):
             db.execute(
                 """
                 INSERT INTO subscribers (
-                    user_id, email, status, last_opened_at, last_clicked_at,
-                    created_at, source_platform, source_ref, source_data, last_synced_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    user_id, email, status, engagement_score, engagement_bucket,
+                    last_opened_at, last_clicked_at, created_at,
+                    source_platform, source_ref, source_data, last_synced_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
                     email,
                     status,
+                    score,
+                    bucket,
                     last_open,
                     last_clicked,
                     now_iso(),
@@ -755,7 +814,7 @@ def get_platform_cleanup_count(user_id, platform):
         """
         SELECT COUNT(*) AS count
         FROM subscribers
-        WHERE user_id = ? AND source_platform = ? AND status IN ('inactive', 'removed')
+        WHERE user_id = ? AND source_platform = ? AND status = 'inactive'
         """,
         (user_id, platform),
     ).fetchone()
@@ -772,7 +831,7 @@ def cleanup_platform_subscribers(user_id, platform):
         """
         SELECT id, email, source_ref, source_data
         FROM subscribers
-        WHERE user_id = ? AND source_platform = ? AND status IN ('inactive', 'removed')
+        WHERE user_id = ? AND source_platform = ? AND status = 'inactive'
         """,
         (user_id, platform),
     ).fetchall()
@@ -817,8 +876,13 @@ def classify_and_update_all_subscribers(user_id):
 
     for row in rows:
         source_data = safe_json_loads(row["source_data"], {})
-        status = classify_engagement(row["last_opened_at"], row["last_clicked_at"], source_data)
-        db.execute("UPDATE subscribers SET status = ? WHERE id = ?", (status, row["id"]))
+        score = calculate_engagement_score(row["last_opened_at"], row["last_clicked_at"], source_data)
+        bucket = bucket_from_score(score)
+        status = status_from_bucket(bucket)
+        db.execute(
+            "UPDATE subscribers SET status = ?, engagement_score = ?, engagement_bucket = ? WHERE id = ?",
+            (status, score, bucket, row["id"]),
+        )
 
     db.commit()
 
@@ -828,6 +892,20 @@ def login_required(view_func):
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("login"))
+        return view_func(*args, **kwargs)
+
+    return wrapped
+
+
+def paid_required(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        user_id = session.get("user_id")
+        if not user_id:
+            return redirect(url_for("login"))
+        if not is_paid_user(user_id):
+            flash("Unlock cleaning for ₹499/month to access this feature.", "error")
+            return redirect(url_for("dashboard"))
         return view_func(*args, **kwargs)
 
     return wrapped
@@ -890,6 +968,81 @@ def inject_tracking_pixel(body_html, subscriber_id):
 
 def apply_engagement_rules(user_id):
     classify_and_update_all_subscribers(user_id)
+
+
+def compute_user_stats(user_id):
+    db = get_db()
+    stats = db.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active,
+            SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive,
+            SUM(CASE WHEN status = 'removed' THEN 1 ELSE 0 END) AS removed,
+            SUM(CASE WHEN last_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
+            SUM(CASE WHEN engagement_bucket = 'highly_engaged' THEN 1 ELSE 0 END) AS highly_engaged
+        FROM subscribers
+        WHERE user_id = ?
+        """,
+        (user_id,),
+    ).fetchone()
+    total = stats["total"] or 0
+    open_rate = (stats["opened"] / total * 100) if total else 0
+    return {
+        "total": total,
+        "active": stats["active"] or 0,
+        "inactive": stats["inactive"] or 0,
+        "removed": stats["removed"] or 0,
+        "open_rate": round(open_rate, 2),
+        "highly_engaged": stats["highly_engaged"] or 0,
+    }
+
+
+def record_clean_history(user_id, phase):
+    data = compute_user_stats(user_id)
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO clean_history (user_id, date, phase, total_subscribers, active_subscribers, open_rate)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            now_iso(),
+            phase,
+            data["total"],
+            data["active"],
+            data["open_rate"],
+        ),
+    )
+    db.commit()
+
+
+def get_recent_clean_history(user_id, limit=12):
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT date, phase, total_subscribers, active_subscribers, open_rate
+        FROM clean_history
+        WHERE user_id = ?
+        ORDER BY date DESC
+        LIMIT ?
+        """,
+        (user_id, limit),
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def build_smart_suggestion(total, inactive_count, open_rate):
+    if total <= 0:
+        return "Upload subscribers to get automated quality insights."
+    if inactive_count <= 0:
+        return "Great job. Your list is currently healthy with no inactive subscribers detected."
+
+    projected = min(95, round(open_rate + (inactive_count / total) * 35, 1))
+    if inactive_count == total:
+        return "Your list is mostly inactive. Cleaning is strongly recommended."
+    return f"Remove {inactive_count} inactive users to increase open rates by ~{max(1, round(projected - open_rate))}%"
 
 
 @app.route("/")
@@ -980,7 +1133,8 @@ def dashboard():
             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive,
             SUM(CASE WHEN status = 'removed' THEN 1 ELSE 0 END) AS removed,
             SUM(CASE WHEN last_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
-            SUM(CASE WHEN last_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked
+            SUM(CASE WHEN last_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
+            SUM(CASE WHEN engagement_bucket = 'highly_engaged' THEN 1 ELSE 0 END) AS highly_engaged
         FROM subscribers
         WHERE user_id = ?
         """,
@@ -996,11 +1150,16 @@ def dashboard():
     click_rate = (stats["clicked"] / total * 100) if total else 0
     engagement_percent = (active_count / total * 100) if total else 0
     never_read_percent = (inactive_total / total * 100) if total else 0
+    highly_engaged_count = stats["highly_engaged"] or 0
+    highly_engaged_percent = (highly_engaged_count / total * 100) if total else 0
     platform_cards = build_platform_cards(user["id"])
     auto_clean_settings = get_auto_clean_settings(user["id"])
     pending_clean = get_latest_pending_clean(user["id"])
     latest_clean_report = get_latest_clean_report(user["id"])
     integrations_connected = has_connected_platform(user["id"])
+    smart_suggestion = build_smart_suggestion(total, inactive_total, open_rate)
+    clean_history = get_recent_clean_history(user["id"], limit=10)
+    is_paid = is_paid_user(user["id"])
 
     first_connected_platform = None
     for card in platform_cards:
@@ -1019,9 +1178,13 @@ def dashboard():
         active_count=active_count,
         inactive_count=inactive_total,
         engagement_percent=round(engagement_percent, 2),
+        highly_engaged_percent=round(highly_engaged_percent, 2),
         never_read_percent=round(never_read_percent, 2),
         open_rate=round(open_rate, 2),
         click_rate=round(click_rate, 2),
+        smart_suggestion=smart_suggestion,
+        clean_history=clean_history,
+        is_paid=is_paid,
         has_data=total > 0,
         before_total=total,
         before_open_rate=round(open_rate, 2),
@@ -1044,14 +1207,61 @@ def settings():
     return redirect(url_for("dashboard") + "#settings")
 
 
+@app.route("/billing/upgrade", methods=["POST"])
+@login_required
+def upgrade_account():
+    db = get_db()
+    db.execute("UPDATE users SET is_paid = 1 WHERE id = ?", (session["user_id"],))
+    db.commit()
+    flash("Plan upgraded. Paid features are now unlocked.", "success")
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/export/inactive")
+@login_required
+def export_inactive_subscribers():
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT email, engagement_score, engagement_bucket, source_platform
+        FROM subscribers
+        WHERE user_id = ? AND status = 'inactive'
+        ORDER BY email ASC
+        """,
+        (session["user_id"],),
+    ).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["email", "engagement_score", "engagement_bucket", "source_platform"])
+    for row in rows:
+        writer.writerow([row["email"], row["engagement_score"], row["engagement_bucket"], row["source_platform"] or "csv"])
+
+    payload = io.BytesIO(output.getvalue().encode("utf-8"))
+    payload.seek(0)
+    return send_file(
+        payload,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="inactive_subscribers.csv",
+    )
+
+
 @app.route("/auto-clean/settings", methods=["POST"])
 @login_required
 def update_auto_clean_settings_route():
     user = current_user()
     enabled = request.form.get("enabled") == "on"
     frequency = (request.form.get("frequency") or "weekly").strip().lower()
-    if frequency not in {"daily", "weekly", "monthly"}:
+    if frequency == "daily":
+        frequency = "every_3_days"
+    if frequency not in {"every_3_days", "weekly", "monthly"}:
         frequency = "weekly"
+
+    if enabled and not is_paid_user(user["id"]):
+        upsert_auto_clean_settings(user["id"], enabled=0, frequency=frequency, pending_review=0)
+        flash("Unlock cleaning for ₹499/month to enable Auto-Clean.", "error")
+        return redirect(url_for("dashboard"))
 
     if enabled and not has_connected_platform(user["id"]):
         upsert_auto_clean_settings(user["id"], enabled=0, frequency=frequency, pending_review=0)
@@ -1065,6 +1275,7 @@ def update_auto_clean_settings_route():
 
 @app.route("/connect/mailchimp")
 @login_required
+@paid_required
 def connect_mailchimp():
     user = current_user()
     code = request.args.get("code")
@@ -1116,6 +1327,7 @@ def connect_mailchimp():
 
 @app.route("/select_mailchimp_audience", methods=["GET", "POST"])
 @login_required
+@paid_required
 def select_mailchimp_audience():
     user = current_user()
     access_token = session.get("mailchimp_token")
@@ -1168,6 +1380,7 @@ def select_mailchimp_audience():
 
 @app.route("/connect/convertkit", methods=["GET", "POST"])
 @login_required
+@paid_required
 def connect_convertkit():
     code = request.args.get("code")
     state = request.args.get("state")
@@ -1213,6 +1426,7 @@ def connect_convertkit():
 
 @app.route("/select_convertkit_form", methods=["GET", "POST"])
 @login_required
+@paid_required
 def select_convertkit_form():
     user = current_user()
     access_token = session.get("convertkit_token")
@@ -1272,6 +1486,7 @@ def select_convertkit_form():
 
 @app.route("/connect/beehiiv", methods=["GET", "POST"])
 @login_required
+@paid_required
 def connect_beehiiv():
     code = request.args.get("code")
     state = request.args.get("state")
@@ -1317,6 +1532,7 @@ def connect_beehiiv():
 
 @app.route("/select_beehiiv_publication", methods=["GET", "POST"])
 @login_required
+@paid_required
 def select_beehiiv_publication():
     user = current_user()
     access_token = session.get("beehiiv_token")
@@ -1377,6 +1593,7 @@ def select_beehiiv_publication():
 
 @app.route("/sync/all", methods=["POST"])
 @login_required
+@paid_required
 def sync_all_integrations():
     totals = sync_all_platforms(session["user_id"])
     if not totals:
@@ -1389,6 +1606,7 @@ def sync_all_integrations():
 
 @app.route("/integrations/<platform>/sync", methods=["POST"])
 @login_required
+@paid_required
 def sync_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1402,6 +1620,7 @@ def sync_integration(platform):
 
 @app.route("/integrations/<platform>/preview-delete")
 @login_required
+@paid_required
 def preview_platform_delete(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1416,11 +1635,14 @@ def preview_platform_delete(platform):
 
 @app.route("/integrations/<platform>/delete", methods=["POST"])
 @login_required
+@paid_required
 def delete_platform_subscribers_route(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
     try:
+        record_clean_history(session["user_id"], "before")
         removed = cleanup_platform_subscribers(session["user_id"], platform)
+        record_clean_history(session["user_id"], "after")
         db = get_db()
         row = db.execute(
             "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'active'",
@@ -1436,6 +1658,7 @@ def delete_platform_subscribers_route(platform):
 
 @app.route("/integrations/<platform>/disconnect")
 @login_required
+@paid_required
 def preview_disconnect_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1466,6 +1689,7 @@ def preview_disconnect_integration(platform):
 
 @app.route("/integrations/<platform>/disconnect", methods=["POST"])
 @login_required
+@paid_required
 def disconnect_integration(platform):
     if platform not in PLATFORM_CONFIG:
         abort(404)
@@ -1486,6 +1710,7 @@ def disconnect_integration(platform):
 
 @app.route("/review-clean/<int:pending_id>")
 @login_required
+@paid_required
 def review_clean(pending_id):
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
@@ -1501,6 +1726,7 @@ def review_clean(pending_id):
 
 @app.route("/review-clean/<int:pending_id>/approve", methods=["POST"])
 @login_required
+@paid_required
 def approve_clean(pending_id):
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
@@ -1511,6 +1737,7 @@ def approve_clean(pending_id):
 
     removed = 0
     failed = 0
+    record_clean_history(session["user_id"], "before")
     for item in pending.get("data_snapshot", []):
         try:
             if delete_snapshot_item(session["user_id"], item):
@@ -1519,6 +1746,7 @@ def approve_clean(pending_id):
                 failed += 1
         except Exception:
             failed += 1
+    record_clean_history(session["user_id"], "after")
 
     update_pending_status(pending_id, session["user_id"], "approved")
     settings = get_auto_clean_settings(session["user_id"])
@@ -1538,6 +1766,7 @@ def approve_clean(pending_id):
 
 @app.route("/review-clean/<int:pending_id>/reject", methods=["POST"])
 @login_required
+@paid_required
 def reject_clean(pending_id):
     pending = get_pending_clean(session["user_id"], pending_id)
     if not pending:
@@ -1704,6 +1933,7 @@ def compose_email():
 
 @app.route("/clean-list", methods=["POST"])
 @login_required
+@paid_required
 def clean_list():
     apply_engagement_rules(session["user_id"])
     flash("Engagement rules applied. Subscriber statuses updated.", "success")

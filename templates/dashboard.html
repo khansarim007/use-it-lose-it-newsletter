@@ -31,6 +31,16 @@
     </aside>
 
     <div class="p-6 sm:p-6 lg:p-7 space-y-6">
+      {% if not is_paid %}
+      <section class="rounded-xl border border-lime-300 bg-lime-50 p-6 shadow-sm reveal">
+        <h2 class="text-2xl font-black text-slate-900">Unlock cleaning for ₹499/month</h2>
+        <p class="mt-2 text-slate-700">Enable one-click cleaning, auto-clean automation, and platform integrations.</p>
+        <form method="POST" action="{{ url_for('upgrade_account') }}" class="mt-4">
+          <button type="submit" class="btn-action btn-action-primary">Upgrade now</button>
+        </form>
+      </section>
+      {% endif %}
+
       {% if has_data and inactive_count > 0 %}
       <section class="rounded-xl border border-rose-200 bg-rose-50 p-6 shadow-sm reveal">
         {% if total > 0 and inactive_count == total %}
@@ -49,10 +59,23 @@
         </div>
         <div class="flex gap-2 items-center justify-center sm:justify-end">
           <a href="{{ url_for('subscribers') }}" class="btn-action bg-white border border-slate-300 text-slate-700 hover:bg-slate-100">View list</a>
+          <a href="{{ url_for('export_inactive_subscribers') }}" class="btn-action bg-white border border-slate-300 text-slate-700 hover:bg-slate-100">Export inactive subscribers</a>
           {% if first_connected_platform %}
+            {% if is_paid %}
             <a href="{{ url_for('preview_platform_delete', platform=first_connected_platform) }}" class="btn-action btn-action-primary text-base px-8">Remove inactive subscribers</a>
+            {% else %}
+            <form method="POST" action="{{ url_for('upgrade_account') }}">
+              <button type="submit" class="btn-action btn-action-primary text-base px-8">Remove inactive subscribers</button>
+            </form>
+            {% endif %}
           {% else %}
+            {% if is_paid %}
             <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary text-base px-8">Remove inactive subscribers</a>
+            {% else %}
+            <form method="POST" action="{{ url_for('upgrade_account') }}">
+              <button type="submit" class="btn-action btn-action-primary text-base px-8">Remove inactive subscribers</button>
+            </form>
+            {% endif %}
           {% endif %}
         </div>
       </div>
@@ -60,7 +83,13 @@
       <section class="dashboard-stat-card reveal">
         <h1 class="text-4xl font-black tracking-tight text-slate-950">Your overview</h1>
         <p class="mt-2 text-slate-600">Monitor engagement quality, cleanup opportunities, and platform sync status.</p>
+        <p class="mt-2 text-base font-semibold text-slate-900">Only {{ highly_engaged_percent }}% of your audience is highly engaged.</p>
         <p class="mt-2 text-sm text-orange-700 font-semibold">You may be paying for inactive subscribers.</p>
+      </section>
+
+      <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm reveal delay-1">
+        <h3 class="text-lg font-bold text-slate-900">Smart suggestion</h3>
+        <p class="mt-2 text-slate-700">{{ smart_suggestion }}</p>
       </section>
 
       {% if cleaned_count is not none %}
@@ -158,7 +187,7 @@
           <h3 class="text-base font-bold text-slate-900">Auto-Clean status</h3>
           <div class="mt-4 space-y-2 text-sm">
             <p class="text-slate-700"><span class="font-semibold">Enabled:</span> {{ 'Yes' if auto_clean_settings.enabled else 'No' }}</p>
-            <p class="text-slate-700"><span class="font-semibold">Frequency:</span> {{ auto_clean_settings.frequency|capitalize }}</p>
+            <p class="text-slate-700"><span class="font-semibold">Frequency:</span> {{ auto_clean_settings.frequency.replace('_', ' ')|capitalize }}</p>
             <p class="text-slate-700"><span class="font-semibold">Last run:</span> {{ auto_clean_settings.last_run_at or 'Never' }}</p>
             <p class="text-slate-700"><span class="font-semibold">Last report:</span> {% if latest_clean_report %}{{ latest_clean_report.created_at }}{% else %}No report{% endif %}</p>
           </div>
@@ -166,6 +195,38 @@
           <a href="{{ url_for('review_clean', pending_id=pending_clean.id) }}" class="btn-action btn-action-primary w-full mt-4">Review {{ pending_clean.inactive_count }} to clean</a>
           {% endif %}
         </article>
+      </section>
+
+      <section class="dashboard-stat-card reveal delay-2 rounded-xl shadow-sm">
+        <h3 class="text-lg font-bold text-slate-900">Progress over time</h3>
+        {% if clean_history %}
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="text-left text-slate-500 uppercase text-xs tracking-wide">
+              <tr>
+                <th class="py-2 pr-4">Date</th>
+                <th class="py-2 pr-4">Phase</th>
+                <th class="py-2 pr-4">Total</th>
+                <th class="py-2 pr-4">Active</th>
+                <th class="py-2">Open Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in clean_history %}
+              <tr class="border-t border-slate-200">
+                <td class="py-2 pr-4 text-slate-700">{{ row.date }}</td>
+                <td class="py-2 pr-4 text-slate-700">{{ row.phase|capitalize }}</td>
+                <td class="py-2 pr-4 text-slate-900 font-semibold">{{ row.total_subscribers }}</td>
+                <td class="py-2 pr-4 text-emerald-700 font-semibold">{{ row.active_subscribers }}</td>
+                <td class="py-2 text-slate-900">{{ row.open_rate }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="mt-2 text-sm text-slate-600">No cleaning history yet. We will track before/after every cleanup.</p>
+        {% endif %}
       </section>
       {% else %}
       <section class="dashboard-stat-card text-center reveal delay-1 rounded-xl shadow-sm">
@@ -188,16 +249,16 @@
         </div>
 
         <form method="POST" action="{{ url_for('update_auto_clean_settings_route') }}" class="grid md:grid-cols-3 gap-3 items-end mt-4">
-          <label class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 bg-slate-50 {% if not integrations_connected %}opacity-60{% endif %}">
-            <input type="checkbox" name="enabled" {% if auto_clean_settings.enabled %}checked{% endif %} {% if not integrations_connected %}disabled{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500">
+          <label class="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-3 bg-slate-50 {% if not integrations_connected or not is_paid %}opacity-60{% endif %}">
+            <input type="checkbox" name="enabled" {% if auto_clean_settings.enabled %}checked{% endif %} {% if not integrations_connected or not is_paid %}disabled{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500">
             <span class="text-sm font-medium text-slate-800">Enable Auto-Clean</span>
           </label>
-          <select name="frequency" class="input-premium" {% if not integrations_connected %}disabled{% endif %}>
-            <option value="daily" {% if auto_clean_settings.frequency == 'daily' %}selected{% endif %}>Daily</option>
+          <select name="frequency" class="input-premium" {% if not integrations_connected or not is_paid %}disabled{% endif %}>
+            <option value="every_3_days" {% if auto_clean_settings.frequency in ['every_3_days', 'daily'] %}selected{% endif %}>Every 3 days</option>
             <option value="weekly" {% if auto_clean_settings.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
             <option value="monthly" {% if auto_clean_settings.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
           </select>
-          <button type="submit" class="btn-action btn-action-primary w-full" {% if not integrations_connected %}disabled{% endif %}>Save settings</button>
+          <button type="submit" class="btn-action btn-action-primary w-full" {% if not integrations_connected or not is_paid %}disabled{% endif %}>Save settings</button>
         </form>
       </section>
 
@@ -234,19 +295,28 @@
 
             <div class="mt-3 space-y-2">
               {% if card.connected %}
-                <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
-                  <button class="btn-platform btn-platform-primary">Sync {{ card.label }}</button>
-                </form>
-                <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="btn-platform btn-platform-danger">Remove inactive</a>
+                {% if is_paid %}
+                  <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
+                    <button class="btn-platform btn-platform-primary">Sync {{ card.label }}</button>
+                  </form>
+                  <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="btn-platform btn-platform-danger">Remove inactive</a>
+                {% else %}
+                  <form method="POST" action="{{ url_for('upgrade_account') }}">
+                    <button type="submit" class="btn-platform btn-platform-primary">Sync {{ card.label }}</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('upgrade_account') }}">
+                    <button type="submit" class="btn-platform btn-platform-danger">Remove inactive</button>
+                  </form>
+                {% endif %}
               {% else %}
                 {% if card.platform == 'mailchimp' %}
-                  <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync Mailchimp</a>
+                  {% if is_paid %}<a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync Mailchimp</a>{% else %}<form method="POST" action="{{ url_for('upgrade_account') }}"><button type="submit" class="btn-platform btn-platform-primary">Sync Mailchimp</button></form>{% endif %}
                 {% elif card.platform == 'convertkit' %}
-                  <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync ConvertKit</a>
+                  {% if is_paid %}<a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync ConvertKit</a>{% else %}<form method="POST" action="{{ url_for('upgrade_account') }}"><button type="submit" class="btn-platform btn-platform-primary">Sync ConvertKit</button></form>{% endif %}
                 {% elif card.platform == 'beehiiv' %}
-                  <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync Beehiiv</a>
+                  {% if is_paid %}<a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync Beehiiv</a>{% else %}<form method="POST" action="{{ url_for('upgrade_account') }}"><button type="submit" class="btn-platform btn-platform-primary">Sync Beehiiv</button></form>{% endif %}
                 {% else %}
-                  <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync {{ card.label }}</a>
+                  {% if is_paid %}<a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">Sync {{ card.label }}</a>{% else %}<form method="POST" action="{{ url_for('upgrade_account') }}"><button type="submit" class="btn-platform btn-platform-primary">Sync {{ card.label }}</button></form>{% endif %}
                 {% endif %}
               {% endif %}
             </div>
