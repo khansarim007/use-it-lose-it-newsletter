@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="space-y-6">
-  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">Subscriber management</div>
@@ -17,7 +17,7 @@
     </div>
   </section>
 
-  <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+  <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden reveal delay-1">
     <div class="overflow-x-auto">
       <table class="min-w-full text-sm">
         <thead class="bg-slate-50 text-left text-slate-600 uppercase tracking-wide text-xs">
@@ -31,7 +31,7 @@
         </thead>
         <tbody>
           {% for sub in subscribers %}
-          <tr class="border-t border-slate-100 hover:bg-slate-50/70 transition-colors">
+          <tr class="border-t border-slate-100 table-row-premium">
             <td class="px-6 py-4 font-medium text-slate-900">{{ sub.email }}</td>
             <td class="px-6 py-4">
               <span class="px-2.5 py-1 rounded-full text-xs font-semibold {% if sub.status == 'active' %}bg-emerald-100 text-emerald-800{% elif sub.status == 'inactive' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">

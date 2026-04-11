@@ -1,43 +1,43 @@
 ﻿{% extends 'base.html' %}
 {% block content %}
 <div class="space-y-8">
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal">
     <h1 class="text-3xl md:text-4xl font-black tracking-tight text-slate-950">Dashboard</h1>
     <p class="mt-2 text-slate-600">Your audience quality overview</p>
   </section>
 
   {% if cleaned_count is not none %}
-  <section class="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 md:p-6">
+  <section class="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 md:p-6 reveal delay-1">
     <h3 class="text-2xl font-black text-emerald-900">{{ cleaned_count }} inactive subscribers removed</h3>
     <p class="mt-2 text-emerald-800">You now have a high-quality audience of {{ engaged_readers or active_count }} engaged readers.</p>
   </section>
   {% endif %}
 
   {% if has_data %}
-  <section class="grid sm:grid-cols-2 xl:grid-cols-4 gap-6">
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center">
+  <section class="grid sm:grid-cols-2 xl:grid-cols-4 gap-6 reveal delay-1">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
       <p class="text-sm text-slate-500">Total Subscribers</p>
       <p class="mt-2 text-4xl font-black text-slate-950">{{ total }}</p>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
       <p class="text-sm text-slate-500">Real Audience (Active)</p>
       <p class="mt-2 text-4xl font-black text-emerald-700">{{ active_count }}</p>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
       <p class="text-sm text-slate-500">Inactive Subscribers</p>
       <p class="mt-2 text-4xl font-black text-rose-700">{{ inactive_count }}</p>
     </div>
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 text-center hover-lift">
       <p class="text-sm text-slate-500">Engagement %</p>
       <p class="mt-2 text-4xl font-black text-slate-950">{{ engagement_percent }}%</p>
     </div>
   </section>
 
-  <section class="bg-rose-50 border border-rose-200 rounded-3xl p-5 md:p-6">
+  <section class="bg-rose-50 border border-rose-200 rounded-3xl p-5 md:p-6 soft-pulse reveal delay-2">
     <p class="text-lg md:text-xl font-bold text-rose-900">{{ never_read_percent }}% of your subscribers never read your emails.</p>
   </section>
 
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-2">
     {% if first_connected_platform %}
       <a href="{{ url_for('preview_platform_delete', platform=first_connected_platform) }}" class="btn-action btn-action-primary w-full md:w-auto md:px-10">Remove inactive subscribers</a>
     {% else %}
@@ -45,8 +45,8 @@
     {% endif %}
   </section>
 
-  <section class="grid md:grid-cols-2 gap-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+  <section class="grid md:grid-cols-2 gap-6 reveal delay-2">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 hover-lift">
       <h3 class="text-lg font-bold text-slate-900">Before</h3>
       <div class="mt-4 space-y-3">
         <div>
@@ -59,7 +59,7 @@
         </div>
       </div>
     </div>
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 hover-lift">
       <h3 class="text-lg font-bold text-slate-900">After</h3>
       <div class="mt-4 space-y-3">
         <div>
@@ -74,7 +74,7 @@
     </div>
   </section>
   {% else %}
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-10 text-center">
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 md:p-10 text-center reveal delay-2">
     <h2 class="text-2xl md:text-3xl font-black tracking-tight text-slate-950">No audience data yet</h2>
     <p class="mt-3 text-slate-600">Upload your list to see how many subscribers actually read your emails.</p>
     <a href="{{ url_for('upload_csv') }}" class="btn-action btn-action-primary mt-6 inline-flex">Upload CSV</a>
@@ -82,7 +82,7 @@
   {% endif %}
 
   {% if pending_clean %}
-  <section class="bg-amber-50 border border-amber-200 rounded-3xl p-5 md:p-6">
+  <section class="bg-amber-50 border border-amber-200 rounded-3xl p-5 md:p-6 reveal delay-3">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
         <h3 class="text-xl font-black text-amber-900">Auto-Clean report ready</h3>
@@ -93,7 +93,7 @@
   </section>
   {% endif %}
 
-  <section id="settings" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section id="settings" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-3">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
       <div>
         <h2 class="text-2xl font-black tracking-tight text-slate-950">Auto-Clean Settings</h2>
@@ -154,7 +154,7 @@
     </div>
   </section>
 
-  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal delay-3">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
       <div>
         <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">

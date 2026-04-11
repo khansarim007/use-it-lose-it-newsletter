@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="space-y-6 max-w-4xl">
-  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal">
     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">Subscriber import</div>
     <h1 class="text-3xl font-black tracking-tight text-slate-950">Upload Subscribers CSV</h1>
     <p class="mt-2 text-slate-600 max-w-2xl">Import a CSV with one column named <span class="font-semibold text-slate-900">email</span> to add subscribers to your list.</p>
   </section>
 
   <div class="grid lg:grid-cols-2 gap-6">
-    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 hover-lift reveal delay-1">
       <form method="POST" enctype="multipart/form-data" class="space-y-5">
         <div>
           <label class="block text-sm font-medium mb-2 text-slate-700">CSV file</label>
@@ -18,7 +18,7 @@
       </form>
     </section>
 
-    <section class="bg-slate-950 text-white rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-900/20">
+    <section class="bg-slate-950 text-white rounded-3xl p-6 md:p-8 shadow-xl shadow-slate-900/20 hover-lift reveal delay-2">
       <h2 class="text-2xl font-bold mb-4">CSV example</h2>
       <p class="text-slate-300 mb-4">Keep the file simple. One email per row.</p>
       <pre class="mt-2 overflow-x-auto rounded-2xl bg-white/10 p-4 text-sm leading-6 text-slate-100">email

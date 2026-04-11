@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="space-y-6">
-  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+  <section class="bg-white/90 backdrop-blur rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 reveal">
     <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold mb-4">Campaign builder</div>
     <h1 class="text-3xl font-black tracking-tight text-slate-950">Email Composer</h1>
     <p class="mt-2 text-slate-600 max-w-2xl">Generate tracked HTML email for a subscriber and preview the final result before sending.</p>
   </section>
 
   <div class="grid lg:grid-cols-2 gap-6">
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 hover-lift reveal delay-1">
       <form method="POST" class="space-y-5">
         <div>
           <label class="block text-sm font-medium mb-2 text-slate-700">Subject</label>
@@ -31,7 +31,7 @@
       </form>
     </div>
 
-    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8">
+    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 md:p-8 hover-lift reveal delay-2">
       <h2 class="text-xl font-bold mb-4 text-slate-950">Generated Output</h2>
       {% if generated_email %}
         <div class="space-y-2 mb-4 text-sm text-slate-700">
