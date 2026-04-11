@@ -17,3 +17,92 @@ body {
 html {
   scroll-behavior: smooth;
 }
+
+.platform-card {
+  transition: transform 150ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.platform-card:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.75rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  transition: transform 120ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.btn-action:hover {
+  transform: translateY(-1px);
+}
+
+.btn-action-primary {
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
+}
+
+.btn-action-primary:hover {
+  background: #1e293b;
+}
+
+.btn-action-accent {
+  background: #0f766e;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.22);
+}
+
+.btn-action-accent:hover {
+  background: #0d9488;
+}
+
+.btn-platform {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-align: center;
+  transition: transform 120ms ease, box-shadow 180ms ease, background-color 180ms ease, color 180ms ease;
+}
+
+.btn-platform:hover {
+  transform: translateY(-1px);
+}
+
+.btn-platform-primary {
+  background: #0f172a;
+  color: #fff;
+}
+
+.btn-platform-primary:hover {
+  background: #1e293b;
+}
+
+.btn-platform-muted {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-platform-muted:hover {
+  background: #cbd5e1;
+}
+
+.btn-platform-danger {
+  background: #be123c;
+  color: #fff;
+}
+
+.btn-platform-danger:hover {
+  background: #9f1239;
+}

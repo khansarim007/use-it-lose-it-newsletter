@@ -12,10 +12,10 @@
       </div>
       <div class="flex flex-wrap gap-3">
         <form method="POST" action="{{ url_for('clean_list') }}">
-          <button class="px-5 py-3 rounded-full bg-slate-950 text-white font-semibold shadow-lg shadow-slate-950/20 hover:bg-slate-800 transition-colors">Clean List</button>
+          <button class="btn-action btn-action-primary">Clean List</button>
         </form>
         <form method="POST" action="{{ url_for('warn_inactive') }}">
-          <button class="px-5 py-3 rounded-full bg-amber-500 text-white font-semibold shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-colors">Send warning email</button>
+          <button class="btn-action btn-action-accent">Send warning email</button>
         </form>
       </div>
     </div>
@@ -32,9 +32,9 @@
       </div>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-4 mt-6">
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
       {% for card in platform_cards %}
-      <div class="rounded-3xl border border-slate-200 p-5 bg-slate-50/80">
+      <div class="platform-card rounded-3xl border border-slate-200 p-5 bg-white/90 flex flex-col">
         <div class="flex items-start justify-between gap-3">
           <div>
             <h3 class="text-lg font-bold text-slate-950">{{ card.label }}</h3>
@@ -48,25 +48,25 @@
         </div>
 
         <div class="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div class="rounded-2xl bg-white border border-slate-200 p-3">
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3">
             <p class="text-slate-500">Synced</p>
             <p class="mt-1 font-semibold text-slate-950">{{ card.subscriber_count }}</p>
           </div>
-          <div class="rounded-2xl bg-white border border-slate-200 p-3">
+          <div class="rounded-2xl bg-slate-50 border border-slate-200 p-3">
             <p class="text-slate-500">Removable</p>
             <p class="mt-1 font-semibold text-slate-950">{{ card.removable_count }}</p>
           </div>
         </div>
 
-        <div class="mt-4 flex flex-col gap-2">
+        <div class="mt-5 flex flex-col gap-2.5">
           {% if card.connected %}
             <form method="POST" action="{{ url_for('sync_integration', platform=card.platform) }}">
-              <button class="w-full rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors">Sync now</button>
+              <button class="btn-platform btn-platform-primary">Sync now</button>
             </form>
-            <a href="{{ url_for('preview_disconnect_integration', platform=card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-slate-200 text-slate-900 font-semibold py-2.5 hover:bg-slate-300 transition-colors text-center">Disconnect platform</a>
-            <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-rose-600 text-white font-semibold py-2.5 hover:bg-rose-700 transition-colors text-center">Remove inactive subscribers from platform</a>
+            <a href="{{ url_for('preview_disconnect_integration', platform=card.platform) }}" class="btn-platform btn-platform-muted">Disconnect platform</a>
+            <a href="{{ url_for('preview_platform_delete', platform=card.platform) }}" class="btn-platform btn-platform-danger">Remove inactive subscribers</a>
           {% else %}
-            <a href="{{ url_for('connect_' ~ card.platform) }}" class="w-full inline-flex items-center justify-center rounded-full bg-slate-950 text-white font-semibold py-2.5 hover:bg-slate-800 transition-colors text-center">{{ card.connect_label }}</a>
+            <a href="{{ url_for('connect_' ~ card.platform) }}" class="btn-platform btn-platform-primary">{{ card.connect_label }}</a>
           {% endif %}
         </div>
       </div>
