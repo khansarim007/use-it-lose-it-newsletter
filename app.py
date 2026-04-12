@@ -1084,7 +1084,7 @@ def build_smart_suggestion(total, inactive_count, open_rate):
 @app.route("/")
 def landing():
     if session.get("user_id"):
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("onboarding"))
     return render_template("landing.html")
 
 
