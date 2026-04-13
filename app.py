@@ -1232,6 +1232,17 @@ def dashboard():
             first_connected_platform = card["platform"]
             break
 
+    inactive_subscribers = db.execute(
+        """
+        SELECT email, engagement_score, engagement_bucket, source_platform, created_at
+        FROM subscribers
+        WHERE user_id = ? AND status = 'inactive'
+        ORDER BY engagement_score ASC, email ASC
+        LIMIT 200
+        """,
+        (user["id"],),
+    ).fetchall()
+
     cleaned_count = request.args.get("cleaned", type=int)
     engaged_readers = request.args.get("engaged", type=int)
 
@@ -1260,6 +1271,7 @@ def dashboard():
         first_connected_platform=first_connected_platform,
         cleaned_count=cleaned_count,
         engaged_readers=engaged_readers,
+        inactive_subscribers=inactive_subscribers,
         platform_cards=platform_cards,
         auto_clean_settings=auto_clean_settings,
         pending_clean=pending_clean,
