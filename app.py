@@ -1122,7 +1122,7 @@ def compute_user_stats(user_id):
             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive,
             SUM(CASE WHEN status = 'removed' THEN 1 ELSE 0 END) AS removed,
             SUM(CASE WHEN last_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
-            SUM(CASE WHEN engagement_bucket = 'highly_engaged' THEN 1 ELSE 0 END) AS highly_engaged
+            SUM(CASE WHEN status != 'removed' AND engagement_bucket = 'highly_engaged' THEN 1 ELSE 0 END) AS highly_engaged
         FROM subscribers
         WHERE user_id = ?
         """,
@@ -1297,12 +1297,12 @@ def dashboard():
     stats = db.execute(
         """
         SELECT
-            COUNT(*) AS total,
+            SUM(CASE WHEN status != 'removed' THEN 1 ELSE 0 END) AS total,
             SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active,
             SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) AS inactive,
             SUM(CASE WHEN status = 'removed' THEN 1 ELSE 0 END) AS removed,
-            SUM(CASE WHEN last_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
-            SUM(CASE WHEN last_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
+            SUM(CASE WHEN status != 'removed' AND last_opened_at IS NOT NULL THEN 1 ELSE 0 END) AS opened,
+            SUM(CASE WHEN status != 'removed' AND last_clicked_at IS NOT NULL THEN 1 ELSE 0 END) AS clicked,
             SUM(CASE WHEN engagement_bucket = 'highly_engaged' THEN 1 ELSE 0 END) AS highly_engaged
         FROM subscribers
         WHERE user_id = ?
@@ -1361,7 +1361,7 @@ def dashboard():
         is_paid=is_paid,
         can_clean=can_clean,
         access_request_count=access_request_count,
-        has_data=total > 0,
+        has_data=(total > 0 or removed_count > 0),
         before_total=total,
         before_open_rate=round(open_rate, 2),
         after_total=active_count,
