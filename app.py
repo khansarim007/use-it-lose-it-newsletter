@@ -1012,10 +1012,48 @@ def has_access_request(user_id):
     return count_access_requests(user_id) > 0
 
 
+def get_inactive_subscriber_count(user_id):
+    db = get_db()
+    row = db.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM subscribers
+        WHERE user_id = ?
+          AND status != 'removed'
+          AND (status = 'inactive' OR engagement_bucket = 'inactive')
+        """,
+        (user_id,),
+    ).fetchone()
+    return row["count"] or 0
+
+
+def get_inactive_subscriber_rows(user_id, limit=200):
+    db = get_db()
+    rows = db.execute(
+        """
+        SELECT email, engagement_score, engagement_bucket, source_platform, created_at
+        FROM subscribers
+        WHERE user_id = ?
+          AND status != 'removed'
+          AND (status = 'inactive' OR engagement_bucket = 'inactive')
+        ORDER BY engagement_score ASC, email ASC
+        LIMIT ?
+        """,
+        (user_id, limit),
+    ).fetchall()
+    return rows
+
+
 def execute_cleaning_for_user(user_id):
     db = get_db()
     removed = db.execute(
-        "UPDATE subscribers SET status = 'removed' WHERE user_id = ? AND status = 'inactive'",
+        """
+        UPDATE subscribers
+        SET status = 'removed'
+        WHERE user_id = ?
+          AND status != 'removed'
+          AND (status = 'inactive' OR engagement_bucket = 'inactive')
+        """,
         (user_id,),
     ).rowcount
     db.commit()
@@ -1288,7 +1326,8 @@ def dashboard():
     pending_clean = get_latest_pending_clean(user["id"])
     latest_clean_report = get_latest_clean_report(user["id"])
     integrations_connected = has_connected_platform(user["id"])
-    smart_suggestion = build_smart_suggestion(total, inactive_total, open_rate)
+    actionable_inactive_count = get_inactive_subscriber_count(user["id"])
+    smart_suggestion = build_smart_suggestion(total, actionable_inactive_count, open_rate)
     clean_history = get_recent_clean_history(user["id"], limit=10)
     is_paid = is_paid_user(user["id"])
     can_clean = can_clean_user(user["id"])
@@ -1300,16 +1339,7 @@ def dashboard():
             first_connected_platform = card["platform"]
             break
 
-    inactive_subscribers = db.execute(
-        """
-        SELECT email, engagement_score, engagement_bucket, source_platform, created_at
-        FROM subscribers
-        WHERE user_id = ? AND status = 'inactive'
-        ORDER BY engagement_score ASC, email ASC
-        LIMIT 200
-        """,
-        (user["id"],),
-    ).fetchall()
+    inactive_subscribers = get_inactive_subscriber_rows(user["id"], limit=200)
 
     cleaned_count = request.args.get("cleaned", type=int)
     engaged_readers = request.args.get("engaged", type=int)
@@ -1320,10 +1350,10 @@ def dashboard():
         stats=stats,
         total=total,
         active_count=active_count,
-        inactive_count=inactive_count,
+        inactive_count=actionable_inactive_count,
         engagement_percent=round(engagement_percent, 2),
         highly_engaged_percent=round(highly_engaged_percent, 2),
-        never_read_percent=round(never_read_percent, 2),
+        never_read_percent=round((actionable_inactive_count / total * 100) if total else 0, 2),
         open_rate=round(open_rate, 2),
         click_rate=round(click_rate, 2),
         smart_suggestion=smart_suggestion,
@@ -2125,10 +2155,7 @@ def clean_list():
         "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ?",
         (user["id"],),
     ).fetchone()["count"] or 0
-    inactive_count = db.execute(
-        "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'inactive'",
-        (user["id"],),
-    ).fetchone()["count"] or 0
+    inactive_count = get_inactive_subscriber_count(user["id"])
 
     if total_count <= 0:
         flash("No subscribers found yet. Upload your list first.", "error")
