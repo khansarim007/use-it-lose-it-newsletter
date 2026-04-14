@@ -15,6 +15,7 @@
     <div class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
       <p class="text-sm font-semibold text-emerald-700">You're on the list</p>
       <p class="mt-1 text-slate-800">We'll enable cleaning for you soon.</p>
+      <p class="mt-2 text-sm text-slate-700">Want early access? Email: <a href="mailto:culllist@gmail.com" class="font-semibold text-slate-900 underline">culllist@gmail.com</a></p>
     </div>
     {% endif %}
 
@@ -31,6 +32,7 @@
     <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
       <p class="text-sm font-semibold text-slate-500">Request access</p>
       <p class="mt-1 text-slate-800">You're on the waitlist. We'll enable cleaning for you soon.</p>
+      <p class="mt-2 text-sm text-slate-700">Want early access? Email: <a href="mailto:culllist@gmail.com" class="font-semibold text-slate-900 underline">culllist@gmail.com</a></p>
       {% if access_request_count > 0 %}
       <p class="mt-2 text-sm text-slate-500">You have already requested access {{ access_request_count }} time{{ 's' if access_request_count != 1 else '' }}.</p>
       {% endif %}
