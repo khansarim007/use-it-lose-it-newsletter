@@ -1320,7 +1320,7 @@ def dashboard():
         stats=stats,
         total=total,
         active_count=active_count,
-        inactive_count=inactive_total,
+        inactive_count=inactive_count,
         engagement_percent=round(engagement_percent, 2),
         highly_engaged_percent=round(highly_engaged_percent, 2),
         never_read_percent=round(never_read_percent, 2),
