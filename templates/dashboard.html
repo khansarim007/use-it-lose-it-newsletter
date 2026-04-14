@@ -35,7 +35,7 @@
       </section>
       {% else %}
       <section class="rounded-xl border border-lime-300 bg-lime-50 p-6 shadow-sm reveal">
-        <h1 class="text-3xl font-black text-slate-900">We found {{ inactive_count }} inactive subscribers.</h1>
+        <h1 class="text-3xl font-black text-slate-900">You're sending emails to {{ inactive_count }} subscribers who don't read them.</h1>
         <p class="mt-2 text-lg text-slate-700">{{ never_read_percent }}% of your list is currently inactive. You are sending emails to people who don't read them.</p>
         <div class="mt-5 flex flex-wrap gap-3">
           <a href="{{ url_for('clean_list') }}" class="btn-action btn-action-primary text-base px-7">Remove inactive subscribers</a>

@@ -8,7 +8,7 @@
 
     <div>
       <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-slate-950">We found {{ inactive_count }} inactive subscribers.</h1>
-      <p class="mt-3 text-lg text-slate-600">Cleaning your list can significantly improve your open rates.</p>
+      <p class="mt-3 text-lg text-slate-600">You are sending emails to people who don't read them.</p>
     </div>
 
     {% if request_sent %}
@@ -38,7 +38,7 @@
     <div class="flex flex-col sm:flex-row gap-3">
       <form method="POST" class="flex-1">
         <input type="hidden" name="action" value="request_access" />
-        <button type="submit" class="btn-action btn-action-primary w-full">Request Access</button>
+        <button type="submit" class="btn-action btn-action-primary w-full {% if access_request_count > 0 %}opacity-60 cursor-not-allowed{% endif %}" {% if access_request_count > 0 %}disabled aria-disabled="true"{% endif %}>{% if access_request_count > 0 %}You're on the waitlist.{% else %}Request Access{% endif %}</button>
       </form>
       <a href="{{ url_for('dashboard') }}" class="btn-action bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 w-full sm:w-auto text-center">Maybe later</a>
     </div>

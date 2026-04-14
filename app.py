@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import os
 import re
 import secrets
@@ -48,6 +49,8 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-change-in-production")
 DATABASE = "database.db"
 DB_READY = False
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("culllist")
 
 
 PLATFORM_CONFIG = {
@@ -163,7 +166,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS access_requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            timestamp TEXT NOT NULL,
+            email TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            timestamp TEXT,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
         """
@@ -195,6 +200,40 @@ def ensure_db_columns(db):
     integration_columns = {row["name"] for row in db.execute("PRAGMA table_info(integrations)").fetchall()}
     if "extra_data" not in integration_columns:
         db.execute("ALTER TABLE integrations ADD COLUMN extra_data TEXT")
+
+    access_request_columns = {row["name"] for row in db.execute("PRAGMA table_info(access_requests)").fetchall()}
+    if access_request_columns:
+        if "email" not in access_request_columns:
+            db.execute("ALTER TABLE access_requests ADD COLUMN email TEXT")
+        if "created_at" not in access_request_columns:
+            db.execute("ALTER TABLE access_requests ADD COLUMN created_at TEXT")
+        if "timestamp" not in access_request_columns:
+            db.execute("ALTER TABLE access_requests ADD COLUMN timestamp TEXT")
+
+        db.execute(
+            """
+            UPDATE access_requests
+            SET created_at = COALESCE(created_at, timestamp)
+            WHERE created_at IS NULL
+            """
+        )
+        db.execute(
+            """
+            UPDATE access_requests
+            SET timestamp = COALESCE(timestamp, created_at)
+            WHERE timestamp IS NULL
+            """
+        )
+        db.execute(
+            """
+            UPDATE access_requests
+            SET email = COALESCE(
+                email,
+                (SELECT users.email FROM users WHERE users.id = access_requests.user_id)
+            )
+            WHERE email IS NULL
+            """
+        )
 
 
 @app.before_request
@@ -263,10 +302,10 @@ def is_paid_user(user_id):
 
 def can_clean_user(user_id):
     db = get_db()
-    row = db.execute("SELECT is_paid, can_clean FROM users WHERE id = ?", (user_id,)).fetchone()
+    row = db.execute("SELECT can_clean FROM users WHERE id = ?", (user_id,)).fetchone()
     if not row:
         return False
-    return bool(int(row["is_paid"] or 0) or int(row["can_clean"] or 0))
+    return bool(int(row["can_clean"] or 0))
 
 
 def get_integrations(user_id):
@@ -939,11 +978,25 @@ def current_user():
 
 def save_access_request(user_id):
     db = get_db()
+    user = db.execute("SELECT id, email FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        return False
+
+    existing = db.execute(
+        "SELECT id FROM access_requests WHERE user_id = ? LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    if existing:
+        return False
+
+    created_at = now_iso()
     db.execute(
-        "INSERT INTO access_requests (user_id, timestamp) VALUES (?, ?)",
-        (user_id, now_iso()),
+        "INSERT INTO access_requests (user_id, email, created_at, timestamp) VALUES (?, ?, ?, ?)",
+        (user_id, user["email"], created_at, created_at),
     )
     db.commit()
+    logger.info("Access request created user_id=%s email=%s", user_id, user["email"])
+    return True
 
 
 def count_access_requests(user_id):
@@ -953,6 +1006,21 @@ def count_access_requests(user_id):
         (user_id,),
     ).fetchone()
     return row["count"] or 0
+
+
+def has_access_request(user_id):
+    return count_access_requests(user_id) > 0
+
+
+def execute_cleaning_for_user(user_id):
+    db = get_db()
+    removed = db.execute(
+        "UPDATE subscribers SET status = 'removed' WHERE user_id = ? AND status = 'inactive'",
+        (user_id,),
+    ).rowcount
+    db.commit()
+    logger.info("Cleaning action performed user_id=%s removed=%s", user_id, removed)
+    return removed
 
 
 def is_valid_email(email):
@@ -1284,6 +1352,29 @@ def dashboard():
 @login_required
 def settings():
     return redirect(url_for("dashboard") + "#settings")
+
+
+@app.route("/admin/enable_clean/<int:user_id>", methods=["GET", "POST"])
+def admin_enable_clean(user_id):
+    configured_token = os.environ.get("ADMIN_ENABLE_TOKEN")
+    provided_token = request.args.get("token") or request.headers.get("X-Admin-Token")
+    if configured_token and provided_token != configured_token:
+        abort(403)
+
+    db = get_db()
+    user = db.execute("SELECT id, email, can_clean FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not user:
+        abort(404)
+
+    db.execute("UPDATE users SET can_clean = 1 WHERE id = ?", (user_id,))
+    db.commit()
+    logger.info("Cleaning access enabled user_id=%s email=%s", user_id, user["email"])
+
+    if request.headers.get("Accept", "").lower().find("application/json") >= 0:
+        return jsonify({"status": "ok", "user_id": user_id, "can_clean": True})
+
+    flash(f"Cleaning enabled for {user['email']}.", "success")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/billing/upgrade", methods=["POST"])
@@ -1722,6 +1813,12 @@ def delete_platform_subscribers_route(platform):
             (session["user_id"],),
         ).fetchone()
         engaged = row["count"] or 0
+        logger.info(
+            "Platform cleaning action user_id=%s platform=%s removed=%s",
+            session["user_id"],
+            platform,
+            removed,
+        )
         flash(f"Removed {removed} inactive subscribers from {PLATFORM_CONFIG[platform]['label']}.", "success")
         return redirect(url_for("dashboard", cleaned=removed, engaged=engaged))
     except Exception as error:
@@ -1831,8 +1928,21 @@ def approve_clean(pending_id):
     )
 
     if failed:
+        logger.info(
+            "Approved review cleanup user_id=%s pending_id=%s removed=%s failed=%s",
+            session["user_id"],
+            pending_id,
+            removed,
+            failed,
+        )
         flash(f"{removed} inactive subscribers removed successfully. {failed} could not be removed.", "success")
     else:
+        logger.info(
+            "Approved review cleanup user_id=%s pending_id=%s removed=%s failed=0",
+            session["user_id"],
+            pending_id,
+            removed,
+        )
         flash(f"{removed} inactive subscribers removed successfully.", "success")
     return redirect(url_for("dashboard"))
 
@@ -2011,15 +2121,35 @@ def compose_email():
 def clean_list():
     user = current_user()
     db = get_db()
+    total_count = db.execute(
+        "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ?",
+        (user["id"],),
+    ).fetchone()["count"] or 0
     inactive_count = db.execute(
         "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'inactive'",
         (user["id"],),
     ).fetchone()["count"] or 0
 
+    if total_count <= 0:
+        flash("No subscribers found yet. Upload your list first.", "error")
+        return redirect(url_for("onboarding"))
+
+    if inactive_count <= 0:
+        flash("Your list is already clean. No action needed.", "success")
+        return redirect(url_for("dashboard"))
+
+    can_clean = can_clean_user(user["id"])
+    access_request_count = count_access_requests(user["id"])
+
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
         if action == "request_access":
-            save_access_request(user["id"])
+            created = save_access_request(user["id"])
+            if created:
+                message = "You're on the list. We'll enable cleaning for you soon."
+                flash(message, "success")
+            else:
+                flash("You're on the waitlist.", "success")
             return render_template(
                 "clean_list.html",
                 inactive_count=inactive_count,
@@ -2027,18 +2157,32 @@ def clean_list():
                 access_request_count=count_access_requests(user["id"]),
                 request_sent=True,
             )
-        if can_clean_user(user["id"]):
-            apply_engagement_rules(session["user_id"])
-            flash("Engagement rules applied. Subscriber statuses updated.", "success")
+
+        if not can_clean:
+            flash("You're on the waitlist.", "success")
+            return redirect(url_for("clean_list"))
+
+        removed = execute_cleaning_for_user(user["id"])
+        if removed <= 0:
+            flash("Your list is already clean. No action needed.", "success")
+        else:
+            flash(f"Removed {removed} inactive subscribers.", "success")
             return redirect(url_for("dashboard"))
-        flash("Request access to unlock cleaning.", "error")
-        return redirect(url_for("clean_list"))
+
+    if can_clean:
+        removed = execute_cleaning_for_user(user["id"])
+        if removed <= 0:
+            flash("Your list is already clean. No action needed.", "success")
+        else:
+            flash(f"Removed {removed} inactive subscribers.", "success")
+        return redirect(url_for("dashboard"))
 
     return render_template(
         "clean_list.html",
         inactive_count=inactive_count,
-        can_clean=can_clean_user(user["id"]),
-        access_request_count=count_access_requests(user["id"]),
+        can_clean=False,
+        access_request_count=access_request_count,
+        request_sent=has_access_request(user["id"]),
     )
 
 
