@@ -1187,6 +1187,11 @@ def build_smart_suggestion(total, inactive_count, open_rate):
     return f"Remove {inactive_count} inactive users to increase open rates by ~{max(1, round(projected - open_rate))}%"
 
 
+def estimate_monthly_waste(inactive_count):
+    # Rough estimate based on average monthly email cost per inactive subscriber.
+    return round((inactive_count or 0) * 0.45, 2)
+
+
 @app.route("/")
 def landing():
     if session.get("user_id"):
@@ -1288,6 +1293,26 @@ def onboarding():
     )
 
 
+@app.route("/importing")
+@login_required
+def importing():
+    allowed_endpoints = {
+        "connect_mailchimp",
+        "connect_convertkit",
+        "connect_beehiiv",
+        "upload_csv",
+        "dashboard",
+    }
+    next_endpoint = (request.args.get("next_endpoint") or "dashboard").strip()
+    if next_endpoint not in allowed_endpoints:
+        next_endpoint = "dashboard"
+
+    return render_template(
+        "importing.html",
+        next_url=url_for(next_endpoint),
+    )
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
@@ -1316,6 +1341,7 @@ def dashboard():
     removed_count = stats["removed"] or 0
     inactive_total = inactive_count + removed_count
     open_rate = (stats["opened"] / total * 100) if total else 0
+    projected_open_rate = (stats["opened"] / active_count * 100) if active_count else 0
     click_rate = (stats["clicked"] / total * 100) if total else 0
     engagement_percent = (active_count / total * 100) if total else 0
     never_read_percent = (inactive_total / total * 100) if total else 0
@@ -1328,6 +1354,7 @@ def dashboard():
     integrations_connected = has_connected_platform(user["id"])
     actionable_inactive_count = get_inactive_subscriber_count(user["id"])
     smart_suggestion = build_smart_suggestion(total, actionable_inactive_count, open_rate)
+    estimated_monthly_waste = estimate_monthly_waste(actionable_inactive_count)
     clean_history = get_recent_clean_history(user["id"], limit=10)
     is_paid = is_paid_user(user["id"])
     can_clean = can_clean_user(user["id"])
@@ -1338,8 +1365,6 @@ def dashboard():
         if card["connected"]:
             first_connected_platform = card["platform"]
             break
-
-    inactive_subscribers = get_inactive_subscriber_rows(user["id"], limit=200)
 
     cleaned_count = request.args.get("cleaned", type=int)
     engaged_readers = request.args.get("engaged", type=int)
@@ -1355,7 +1380,9 @@ def dashboard():
         highly_engaged_percent=round(highly_engaged_percent, 2),
         never_read_percent=round((actionable_inactive_count / total * 100) if total else 0, 2),
         open_rate=round(open_rate, 2),
+        projected_open_rate=round(projected_open_rate, 2),
         click_rate=round(click_rate, 2),
+        estimated_monthly_waste=estimated_monthly_waste,
         smart_suggestion=smart_suggestion,
         clean_history=clean_history,
         is_paid=is_paid,
@@ -1369,12 +1396,48 @@ def dashboard():
         first_connected_platform=first_connected_platform,
         cleaned_count=cleaned_count,
         engaged_readers=engaged_readers,
-        inactive_subscribers=inactive_subscribers,
         platform_cards=platform_cards,
         auto_clean_settings=auto_clean_settings,
         pending_clean=pending_clean,
         latest_clean_report=latest_clean_report,
         integrations_connected=integrations_connected,
+    )
+
+
+@app.route("/inactive")
+@login_required
+def inactive_list():
+    user = current_user()
+    db = get_db()
+    total_count = db.execute(
+        "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status != 'removed'",
+        (user["id"],),
+    ).fetchone()["count"] or 0
+    inactive_count = get_inactive_subscriber_count(user["id"])
+    inactive_subscribers = get_inactive_subscriber_rows(user["id"], limit=300)
+    can_clean = can_clean_user(user["id"])
+
+    if total_count <= 0:
+        flash("No subscribers found yet. Connect a platform or upload CSV first.", "error")
+        return redirect(url_for("onboarding"))
+
+    return render_template(
+        "inactive.html",
+        inactive_count=inactive_count,
+        inactive_subscribers=inactive_subscribers,
+        can_clean=can_clean,
+    )
+
+
+@app.route("/clean-success")
+@login_required
+def clean_success():
+    removed = max(0, request.args.get("removed", 0, type=int) or 0)
+    remaining_active = max(0, request.args.get("active", 0, type=int) or 0)
+    return render_template(
+        "clean_success.html",
+        removed=removed,
+        remaining_active=remaining_active,
     )
 
 
@@ -1425,7 +1488,12 @@ def export_inactive_subscribers():
         """
         SELECT email, engagement_score, engagement_bucket, source_platform
         FROM subscribers
-        WHERE user_id = ? AND status = 'inactive'
+                WHERE user_id = ?
+                    AND status != 'removed'
+                    AND (
+                        status = 'inactive'
+                        OR COALESCE(engagement_bucket, '') = 'inactive'
+                    )
         ORDER BY email ASC
         """,
         (session["user_id"],),
@@ -2075,7 +2143,7 @@ def upload_csv():
         db.commit()
         apply_engagement_rules(session["user_id"])
         flash(f"Upload complete. Added {inserted} subscribers.", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("importing", next_endpoint="dashboard"))
 
     return render_template("upload.html")
 
@@ -2185,6 +2253,10 @@ def clean_list():
                 request_sent=True,
             )
 
+        if action != "clean":
+            flash("Select a valid action.", "error")
+            return redirect(url_for("clean_list"))
+
         if not can_clean:
             flash("You're on the waitlist.", "success")
             return redirect(url_for("clean_list"))
@@ -2192,22 +2264,19 @@ def clean_list():
         removed = execute_cleaning_for_user(user["id"])
         if removed <= 0:
             flash("Your list is already clean. No action needed.", "success")
-        else:
-            flash(f"Removed {removed} inactive subscribers.", "success")
             return redirect(url_for("dashboard"))
-
-    if can_clean:
-        removed = execute_cleaning_for_user(user["id"])
-        if removed <= 0:
-            flash("Your list is already clean. No action needed.", "success")
         else:
             flash(f"Removed {removed} inactive subscribers.", "success")
-        return redirect(url_for("dashboard"))
+            active_after = db.execute(
+                "SELECT COUNT(*) AS count FROM subscribers WHERE user_id = ? AND status = 'active'",
+                (user["id"],),
+            ).fetchone()["count"] or 0
+            return redirect(url_for("clean_success", removed=removed, active=active_after))
 
     return render_template(
         "clean_list.html",
         inactive_count=inactive_count,
-        can_clean=False,
+        can_clean=can_clean,
         access_request_count=access_request_count,
         request_sent=has_access_request(user["id"]),
     )

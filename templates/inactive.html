@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="max-w-5xl mx-auto">
+  <div class="rounded-[2rem] border border-slate-200 bg-white shadow-sm overflow-hidden reveal">
+    <div class="p-6 sm:p-8 border-b border-slate-200">
+      <span class="inline-flex items-center px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-sm font-semibold">Step 3 of 3</span>
+      <h1 class="mt-4 text-4xl font-black tracking-tight text-slate-950">Inactive subscribers ({{ inactive_count }})</h1>
+      <p class="mt-2 text-slate-600">These contacts are not engaging and are reducing your deliverability.</p>
+    </div>
+
+    {% if inactive_subscribers %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-left text-slate-600 uppercase tracking-wide text-xs">
+          <tr>
+            <th class="px-5 py-3">Email</th>
+            <th class="px-5 py-3">Status</th>
+            <th class="px-5 py-3">Last Active</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for sub in inactive_subscribers %}
+          <tr class="border-t border-slate-100">
+            <td class="px-5 py-3 font-medium text-slate-900">{{ sub.email }}</td>
+            <td class="px-5 py-3 text-slate-700">Inactive</td>
+            <td class="px-5 py-3 text-slate-500">{{ sub.last_opened_at or sub.last_clicked_at or 'No activity found' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-8 text-center text-slate-600">No inactive subscribers found. Your list is clean.</div>
+    {% endif %}
+
+    <div class="p-6 sm:p-8 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+      <p class="text-sm text-slate-600">Removing inactive subscribers cannot be undone.</p>
+      <a href="{{ url_for('clean_list') }}" class="btn-action btn-action-primary">Remove inactive subscribers</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
