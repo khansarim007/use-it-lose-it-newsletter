@@ -1620,7 +1620,7 @@ def select_mailchimp_audience():
                 # Clean up session
                 session.pop("mailchimp_token", None)
                 session.pop("mailchimp_server_prefix", None)
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("importing", next_endpoint="dashboard"))
             except Exception as error:
                 flash(f"Failed to sync audience: {error}", "error")
         return render_template(
@@ -1722,7 +1722,7 @@ def select_convertkit_form():
                 flash(f"ConvertKit connected. Synced {inserted + updated} subscribers.", "success")
                 session.pop("convertkit_token", None)
                 session.pop("convertkit_refresh_token", None)
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("importing", next_endpoint="dashboard"))
             except Exception as error:
                 flash(f"Failed to sync ConvertKit form: {error}", "error")
 
@@ -1827,7 +1827,7 @@ def select_beehiiv_publication():
                 flash(f"Beehiiv connected. Synced {inserted + updated} subscribers.", "success")
                 session.pop("beehiiv_token", None)
                 session.pop("beehiiv_refresh_token", None)
-                return redirect(url_for("dashboard"))
+                return redirect(url_for("importing", next_endpoint="dashboard"))
             except Exception as error:
                 flash(f"Failed to sync Beehiiv publication: {error}", "error")
 
